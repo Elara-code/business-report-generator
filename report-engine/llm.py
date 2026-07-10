@@ -1,8 +1,12 @@
 """LLM 客户端：支持 OpenAI 兼容协议（OpenAI/DeepSeek/通义千问等）+ Mock 模式。
 
+注意："WorkBuddy 模式"已重命名为"本地预置模式"（preset），因为它实际不调用
+WorkBuddy API，而是复用 examples/ 下预先生成的 JSON 报告 —— 真正的生成由
+WorkBuddy AI 在对话中完成。
+
 用法：
     from llm import get_provider
-    provider = get_provider("openai")  # 或 "workbuddy" / "mock"
+    provider = get_provider("openai", timeout=60)  # 或 "mock"
     text = provider.complete(system=..., user=...)
 """
 from __future__ import annotations
@@ -10,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from typing import Any, Protocol
 
 
@@ -20,18 +25,21 @@ class LLMProvider(Protocol):
 
 
 # ---------------------------------------------------------------------------
-# Mock Provider —— 用于无 API Key 的演示 / 单测 / 跑通流程
+# Mock / 本地预置模式 —— 使用 examples/ 下的预生成 JSON
 # ---------------------------------------------------------------------------
 
 class MockProvider:
+    """本地预置模式：从 examples/<preset>.json 读取预生成报告。
+
+    用户若想生成新报告，应走 openai 模式或直接在 WorkBuddy 对话中生成。
+    """
     name = "mock"
 
-    def __init__(self, preset: str | None = None):
-        # preset 决定返回哪份预生成报告（coffee / notion / notion-vs-obsidian / generic）
+    def __init__(self, preset: str | None = None, timeout: int = 60):
         self.preset = preset or "generic"
+        self.timeout = timeout
 
     def complete(self, system: str, user: str, *, json_mode: bool = True) -> str:
-        # 优先用 preset 文件（已生成的 JSON），跳过 prompt 模板
         here = os.path.dirname(os.path.abspath(__file__))
         examples_dir = os.path.join(here, "examples")
         preset_path = os.path.join(examples_dir, f"{self.preset}.json")
@@ -39,11 +47,9 @@ class MockProvider:
             with open(preset_path, "r", encoding="utf-8") as f:
                 return f.read()
 
-        # 否则从 user 里抽主题，生成一个最小可用报告
+        # 兜底：generic 占位
         m = re.search(r"主题[：:]\s*\*\*(.+?)\*\*", user)
         subject = m.group(1) if m else "未知主题"
-
-        # 否则生成一个最小可用报告
         report = {
             "meta": {
                 "title": f"{subject}分析报告（Mock 数据）",
@@ -51,7 +57,7 @@ class MockProvider:
                 "type": "industry",
                 "generated_at": "2026-07-10T00:00:00+08:00",
             },
-            "summary": f"这是一份关于 {subject} 的演示报告（Mock 模式）。\n\n要获得真实数据，请配置 OPENAI_API_KEY 或在 WorkBuddy 对话中让 AI 直接生成。",
+            "summary": f"这是一份关于 {subject} 的演示报告（Mock 模式）。\n\n要获得真实数据，请配置 OPENAI_API_KEY 或使用其他 AI 提供商。",
             "sections": [
                 {
                     "title": "市场概览",
@@ -63,34 +69,30 @@ class MockProvider:
                                  "values": [100, 130, 165, 210, 270], "unit": "亿元"},
                     },
                 },
-                {
-                    "title": "竞争格局",
-                    "content": "示例章节内容。",
-                    "chart": {
-                        "type": "radar",
-                        "title": "波特五力评分",
-                        "data": {"axes": ["供应商", "购买者", "新进入", "替代品", "现有竞争"],
-                                 "values": [3.5, 4.0, 2.5, 3.0, 4.5]},
-                    },
-                },
             ],
-            "appendix": {
-                "data_sources": ["Mock 数据"],
-                "limitations": "此为演示数据，不具备分析价值。",
-            },
+            "appendix": {"data_sources": ["Mock 数据"], "limitations": "此为演示数据，不具备分析价值。"},
         }
         return json.dumps(report, ensure_ascii=False)
 
 
+# WorkBuddyProvider 已重命名为 MockProvider，保留别名做向后兼容
+class WorkBuddyProvider(MockProvider):
+    """向后兼容别名 —— 实际行为等同于 MockProvider。
+
+    历史说明：原意是在 WorkBuddy 对话中生成报告后通过 CLI 渲染，但实际
+    使用时容易与用户输入错配，且增加理解成本。已统一为"本地预置模式"。
+    """
+    name = "workbuddy"
+
+
 # ---------------------------------------------------------------------------
-# OpenAI 兼容 Provider —— 支持 base_url 自定义
+# OpenAI 兼容 Provider —— 支持 base_url 自定义 + 超时 + 重试
 # ---------------------------------------------------------------------------
 
 class OpenAIProvider:
     name = "openai"
 
-    def __init__(self):
-        # 延迟 import：mock 模式下不依赖 openai
+    def __init__(self, timeout: int = 60, max_retries: int = 2):
         from openai import OpenAI
         api_key = os.environ.get("OPENAI_API_KEY", "").strip()
         if not api_key:
@@ -99,8 +101,9 @@ class OpenAIProvider:
             )
         base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").strip()
         model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini").strip()
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        self.client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout, max_retries=max_retries)
         self.model = model
+        self.timeout = timeout
 
     def complete(self, system: str, user: str, *, json_mode: bool = True) -> str:
         kwargs: dict[str, Any] = {
@@ -110,6 +113,7 @@ class OpenAIProvider:
                 {"role": "user", "content": user},
             ],
             "temperature": 0.4,
+            "timeout": self.timeout,
         }
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
@@ -118,39 +122,17 @@ class OpenAIProvider:
 
 
 # ---------------------------------------------------------------------------
-# WorkBuddy Provider —— 走"对话式"调用（用户在 WorkBuddy 对话里直接说）
-# ---------------------------------------------------------------------------
-
-class WorkBuddyProvider:
-    """WorkBuddy 模式下，CLI 会读取 examples/ 下用户已准备好的 JSON。
-
-    这是一个**占位实现**：当用户在 WorkBuddy 对话中跟 AI 说"用咖啡行业生成一份"，
-    AI 直接在对话中产出 JSON 并保存到 examples/，然后 CLI 用 --ai workbuddy 跑
-    渲染流程。这样避免了双重 API 计费。
-    """
-    name = "workbuddy"
-
-    def __init__(self, preset: str | None = None):
-        self.preset = preset or "coffee"
-        self._delegate = MockProvider(preset=self.preset)
-
-    def complete(self, system: str, user: str, *, json_mode: bool = True) -> str:
-        # 实际生成由 WorkBuddy AI 在对话中完成，CLI 仅复用 examples JSON
-        return self._delegate.complete(system, user, json_mode=json_mode)
-
-
-# ---------------------------------------------------------------------------
 # 工厂
 # ---------------------------------------------------------------------------
 
-def get_provider(name: str, preset: str | None = None) -> LLMProvider:
+def get_provider(name: str, preset: str | None = None, *,
+                 timeout: int = 60, max_retries: int = 2) -> LLMProvider:
     name = (name or "mock").lower()
     if name == "openai":
-        return OpenAIProvider()
-    if name == "workbuddy":
-        return WorkBuddyProvider(preset=preset)
-    if name == "mock":
-        return MockProvider(preset=preset)
+        return OpenAIProvider(timeout=timeout, max_retries=max_retries)
+    if name in ("workbuddy", "mock"):
+        # 两个名字都走 MockProvider
+        return MockProvider(preset=preset, timeout=timeout)
     raise ValueError(f"未知 AI 提供商: {name}")
 
 

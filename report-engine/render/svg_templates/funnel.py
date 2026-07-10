@@ -55,7 +55,7 @@ def render(data: dict, title: str | None = None, width: int = 720, height: int =
         label_x = x_center + max(w_top, w_bot) / 2 + 16
         parts.append(
             f'<text x="{label_x}" y="{pad_t + stage_h * (i + 0.5) - 2}" font-size="13" '
-            f'font-weight="600" fill="{PALETTE["text"]}">{esc(v):,}</text>'
+            f'font-weight="600" fill="{PALETTE["text"]}">{esc(f"{v:,}")}</text>'
         )
         parts.append(
             f'<text x="{label_x}" y="{pad_t + stage_h * (i + 0.5) + 14}" font-size="11" '

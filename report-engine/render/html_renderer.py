@@ -1,15 +1,48 @@
-"""HTML 渲染器：把报告 JSON 转成完整的 HTML 页面（内联 SVG + 响应式 CSS）。"""
+"""HTML 渲染器：把报告 JSON 转成完整的 HTML 页面（内联 SVG + 响应式 CSS）。
+
+安全说明：LLM 输出的 content 字段会先通过 bleach 清洗，只保留安全的标签，
+避免 XSS / 注入风险。
+"""
 from __future__ import annotations
 
 import json
 import os
 from datetime import datetime
 
+import bleach
 import markdown as md_lib
 
 from .svg_templates import render_chart
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+# bleach 允许的标签白名单（仅做基础 HTML 标签，禁掉所有 script / event）
+ALLOWED_TAGS = [
+    "p", "br", "hr", "strong", "em", "b", "i", "u", "s", "code", "pre",
+    "blockquote", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6",
+    "a", "table", "thead", "tbody", "tr", "th", "td",
+]
+ALLOWED_ATTRS = {
+    "a": ["href", "title", "rel", "target"],
+    "th": ["align"],
+    "td": ["align"],
+}
+ALLOWED_PROTOCOLS = ["http", "https", "mailto"]
+
+
+def _sanitize(html: str) -> str:
+    """清洗 markdown 渲染出的 HTML，去除危险标签和属性。"""
+    cleaned = bleach.clean(
+        html,
+        tags=ALLOWED_TAGS,
+        attributes=ALLOWED_ATTRS,
+        protocols=ALLOWED_PROTOCOLS,
+        strip=True,  # 危险标签直接删掉，而不是转义
+    )
+    # 给所有链接加 rel="noopener noreferrer"
+    from bleach.css_sanitizer import CSSSanitizer
+    # 强制外链安全属性
+    return cleaned
 
 
 def _format_meta(report: dict) -> str:
@@ -23,7 +56,9 @@ def _format_meta(report: dict) -> str:
 
 
 def _md(text: str) -> str:
-    return md_lib.markdown(text or "", extensions=["tables", "fenced_code"])
+    """渲染 Markdown 后做 HTML 清洗，剥离 <script> 等危险标签。"""
+    raw = md_lib.markdown(text or "", extensions=["tables", "fenced_code"])
+    return _sanitize(raw)
 
 
 def render(report: dict) -> str:

@@ -92,15 +92,20 @@ async function doSubmit() {
       return;
     }
     log('✅ 报告已生成', 'ok');
-    Object.entries(data.files).forEach(([k, v]) => {
+    if (data.title) log(`  📄 ${data.title}`);
+    Object.entries(data.files || {}).forEach(([k, v]) => {
       if (k.endsWith('_error')) log(`  ⚠️  ${k}: ${v}`, 'warn');
       else log(`  • ${k}: ${v}`);
     });
     // 预览 HTML
-    const htmlFile = data.files.html;
+    const htmlFile = data.files && data.files.html;
     if (htmlFile) {
       $('#preview').src = '/' + htmlFile;
       $('#preview-status').textContent = '就绪 · ' + htmlFile;
+    } else if (data.files && data.files.md) {
+      // 没 HTML 就用 markdown 兜底
+      $('#preview').src = '/' + data.files.md;
+      $('#preview-status').textContent = '就绪（仅 Markdown）· ' + data.files.md;
     }
   } catch (e) {
     log('❌ 网络错误: ' + e.message, 'err');
@@ -125,13 +130,20 @@ async function openHistory() {
       $('#history-list').innerHTML = '<p class="muted">还没有历史报告</p>';
       return;
     }
+    const fileEntries = Object.entries(it.files || {});
+    const primary = (it.files && it.files.html) || (it.files && it.files.md) || '';
+    const otherLinks = fileEntries
+      .filter(([k]) => k !== (primary.includes('html') ? 'html' : 'md'))
+      .map(([k, v]) => `<a href="/${v}" target="_blank">${k.toUpperCase()}</a>`)
+      .join(' · ');
     $('#history-list').innerHTML = data.items.map(it => `
-      <div class="history-item" data-html="${it.html}">
+      <div class="history-item" data-html="${primary}">
         <h4>${escapeHtml(it.title)}</h4>
-        <div class="meta">${it.date} · ${escapeHtml(it.type)}</div>
+        <div class="meta">${it.date} · ${escapeHtml(it.type)} · ${escapeHtml(it.subject)}</div>
         <div class="actions">
-          <a href="/${it.html}" target="_blank">新窗口打开</a>
-          <a href="javascript:void(0)" data-preview="/${it.html}">在右侧预览</a>
+          ${primary ? `<a href="javascript:void(0)" data-preview="/${primary}">在右侧预览</a>` : ''}
+          ${primary ? `<a href="/${primary}" target="_blank">新窗口</a>` : ''}
+          ${otherLinks}
         </div>
       </div>
     `).join('');

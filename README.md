@@ -22,18 +22,22 @@
 ```bash
 cd report-engine
 source .venv/bin/activate
+pip install -r requirements.txt
 
 # 看 3 份预生成报告（无需任何 API Key）
-python generate.py --type industry    --subject "中国现制咖啡"     --ai mock --preset coffee
-python generate.py --type product     --subject "Notion"            --ai mock --preset notion
-python generate.py --type competitor  --subject "Notion vs Obsidian" --ai mock --preset notion-vs-obsidian
+python generate.py gen --type industry    --subject "中国现制咖啡"     --ai mock --preset coffee
+python generate.py gen --type product     --subject "Notion"            --ai mock --preset notion
+python generate.py gen --type competitor  --subject "Notion vs Obsidian" --ai mock --preset notion-vs-obsidian
+
+# 从已有 JSON 渲染（跳过 LLM）
+python generate.py gen --type industry --subject "我的主题" --from-json examples/coffee.json
 
 # 真实 AI 生成（需要 OPENAI_API_KEY）
 export OPENAI_API_KEY=sk-xxx
-python generate.py --type industry --subject "咖啡" --ai openai --formats html,md,pdf
+python generate.py gen --type industry --subject "咖啡" --ai openai --formats html,md,pdf
 ```
 
-输出在 `reports/20260710_HHMMSS_<type>_<subject>/`，含 `report.html` / `report.md` / `report.pdf` / `report.json`。
+输出在 `reports/20260710_HHMMSS_us_<type>_<subject>_<short-uuid>/`，含 `report.html` / `report.md` / `report.pdf` / `report.json`。
 
 ### 2. 网页应用
 
@@ -54,7 +58,7 @@ python generate.py serve --port 8765
 | --- | --- | --- |
 | `mock` | 无需配置，使用 `examples/*.json` 预生成报告 | 演示 / 试用 / 离线 |
 | `openai` | `export OPENAI_API_KEY=sk-xxx` | 真实生成（兼容 DeepSeek / 通义千问等，自定义 `OPENAI_BASE_URL` + `OPENAI_MODEL`） |
-| `workbuddy` | 无需配置 | 在 WorkBuddy 对话中直接说"用咖啡行业生成一份"，AI 把 JSON 存到 `examples/your.json`，CLI 跑渲染流程 |
+| `workbuddy` | 等同 `mock`（向后兼容） | 同上 |
 
 ### OpenAI 兼容协议示例
 
@@ -77,14 +81,15 @@ export OPENAI_API_KEY=sk-xxx
 ├── README.md                          ← 本文件
 ├── report-engine/                     ← 命令行生成器
 │   ├── generate.py                    ← 主入口（CLI + 后端服务）
-│   ├── llm.py                         ← LLM 客户端（mock / openai / workbuddy）
-│   ├── schemas.py                     ← 报告结构定义
+│   ├── llm.py                         ← LLM 客户端（mock / openai）
+│   ├── report_model.py                ← Pydantic 报告模型（运行时校验）
+│   ├── schemas.py                     ← 报告结构常量
 │   ├── prompts/                       ← 3 个类型 prompt 模板
 │   │   ├── industry_report.md
 │   │   ├── product_report.md
 │   │   └── competitor_report.md
 │   ├── render/                        ← 渲染器
-│   │   ├── html_renderer.py
+│   │   ├── html_renderer.py           ← HTML 渲染（含 bleach XSS 清洗）
 │   │   ├── md_renderer.py
 │   │   ├── pdf_renderer.py
 │   │   └── svg_templates/             ← 7 个 SVG 模板（零依赖）
@@ -96,6 +101,8 @@ export OPENAI_API_KEY=sk-xxx
 │   │   ├── coffee.json
 │   │   ├── notion.json
 │   │   └── notion-vs-obsidian.json
+│   ├── tests/                         ← 单元测试
+│   │   └── test_fixes.py
 │   └── requirements.txt
 ├── web/                               ← 网页前端
 │   ├── index.html
@@ -172,6 +179,31 @@ A: 8-9 个章节 + 6+ 张图，HTML 文件约 30-50KB，可直接打印（带 `@
 
 **Q: 能否用于商业用途？**
 A: 项目代码 MIT 协议，但 LLM 生成的报告内容需自行校验数据准确性。
+
+**Q: 怎么跑测试？**
+A: `cd report-engine && .venv/bin/python -m pytest tests/ -v`（20 个测试覆盖 funnel 渲染、JSON 校验、preset 错配、from-json 流程、HTML 清洗、目录唯一性）
+
+## 🛡️ 已修复的稳定性问题（v0.2）
+
+- ✅ 根路由 `/` 直接返回 Web UI（不再看到文件列表）
+- ✅ 漏斗图 `f'{esc(v):,}'` 字符串格式化 bug 修复
+- ✅ Mock preset 与用户输入错配时强制覆盖 `meta.type` / `meta.subject`
+- ✅ `--from-json` 流程补全（之前引用未定义变量）
+- ✅ 引入 Pydantic 运行时校验，LLM 输出缺字段自动兜底
+- ✅ LLM 调用支持超时 / 重试
+- ✅ 报告目录加微秒 + UUID 后缀，避免同秒冲突
+- ✅ `/api/history` 只返回真实存在的文件
+- ✅ HTML 渲染器用 bleach 清洗 LLM 输出，剥离 `<script>` / `javascript:` 等危险内容
+- ✅ 单元测试：20 用例覆盖核心路径
+
+## 🚧 路线图（vs 用户审阅建议）
+
+按"研究任务 → 数据采集 → 报告 → 决策建议"工作台演进：
+
+- **P2 - 可信度**（下一阶段）：URL / 发布时间 / 来源类型 / 事实 vs 推断标签 / 置信度
+- **P3 - 输入丰富度**：目标读者 / 地区 / 时间范围 / 自定义章节 / 用户上传材料
+- **P4 - 报告后处理**：单章节重生 / 追问 / 批注 / PPT 导出 / 分享链接
+- **P5 - 工程化**：CI、类型检查、Docker、正式 LICENSE、可访问性
 
 ## 📄 License
 
