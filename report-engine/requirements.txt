@@ -1,0 +1,4 @@
+openai>=1.0
+requests>=2.31
+markdown>=3.5
+weasyprint>=62

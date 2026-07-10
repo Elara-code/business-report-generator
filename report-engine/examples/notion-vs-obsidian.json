@@ -1,0 +1,143 @@
+{
+  "meta": {
+    "title": "Notion vs Obsidian 深度对比分析",
+    "subject": "Notion vs Obsidian",
+    "type": "competitor",
+    "generated_at": "2026-07-10T02:00:00+08:00"
+  },
+  "summary": "**Notion** 是云端 All-in-One 工作空间，PLG 增长、协作见长；**Obsidian** 是本地 Markdown 知识库，极客向、第二大脑概念奠基者。\n\n**一句话结论**：\n- **5 人创业团队选 Notion**——协作 + 模板 + 移动端\n- **个人深度思考 + 数据主权选 Obsidian**——本地存储 + 双向链接 + 插件生态\n- **2 者市场重叠度 < 30%**，更像是「协作工具 vs 个人工具」而非「直接竞品」\n\n下表是核心维度速览：\n\n| 维度 | Notion | Obsidian |\n| --- | --- | --- |\n| 类型 | 云端 SaaS | 本地软件 |\n| 数据存储 | Notion 服务器 | 用户本地（可选 iCloud / 第三方云） |\n| 协作 | 实时多人 | 需付费 Obsidian Publish / Sync |\n| 核心哲学 | Block 一切皆 block | 双向链接 + 知识图谱 |\n| 用户量 | 3,000 万+ | 数百万人（2024 公开） |\n| 商业模式 | Freemium SaaS | 一次性买断 + 增值 |\n| 移动端 | 强 | 一般 |\n| AI | 内置 Notion AI | 通过插件集成 |\n| 杀手锏 | 模板 + 协作 | 链接 + 插件 |",
+  "sections": [
+    {
+      "title": "产品速览",
+      "content": "### Notion\n- **成立时间**：2013 年（Ivan Zhao 创立），2016 年公开版\n- **定位**：All-in-One 工作空间\n- **核心功能**：文档 / 数据库 / Wiki / 看板整合\n- **当前规模**：月活 3,000 万+，ARR 5 亿美元，估值 100 亿美元\n- **商业模式**：Freemium SaaS，个人免费 / Plus $10 / Business $15 / Enterprise 定制\n\n### Obsidian\n- **成立时间**：2020 年（Erica Xu + Shida Li 创立）\n- **定位**：本地优先的 Markdown 知识库\n- **核心功能**：双向链接 / 反向链接 / 知识图谱可视化 / 插件生态\n- **当前规模**：付费用户数 10 万级（一次性 $50 买断），估值未公开\n- **商业模式**：个人版 $50 一次性（3 台设备）/ Catalyst $25/月 / Sync $8-16/月 / Publish $16/月",
+      "chart": {
+        "type": "bar",
+        "title": "Notion vs Obsidian 用户规模对比（2024）",
+        "data": {
+          "categories": ["月活用户", "付费用户（万）", "ARR（亿美元）"],
+          "values": [3000, 100, 5],
+          "unit": ""
+        }
+      }
+    },
+    {
+      "title": "定位对比",
+      "content": "把「**易用性**」和「**功能深度**」作为坐标轴，可以清楚看到：\n\n- **Notion**：4.2 / 4.8 —— 易用性中上 + 功能深度极强，主打协作场景\n- **Obsidian**：3.5 / 4.7 —— 上手较难（Markdown + 插件配置）但深度极强，主打个人知识管理\n\n如果用「**协作性**」和「**数据主权**」做轴：\n- **Notion 牺牲数据主权换协作**：所有数据在 Notion 服务器，迁移成本高\n- **Obsidian 牺牲协作换数据主权**：本地文件 = 永久拥有，但团队协作要靠付费 Sync\n\n**关键洞察**：这俩其实是**「个人工具 vs 团队工具」**而非「同维竞品」——但在「第二大脑」「知识管理」这个新兴赛道上确实会二选一。",
+      "chart": {
+        "type": "matrix",
+        "title": "Notion vs Obsidian 定位象限",
+        "data": {
+          "x_label": "协作性 →",
+          "y_label": "↑ 数据主权",
+          "points": [
+            {"name": "Notion", "x": 4.7, "y": 2.0},
+            {"name": "Obsidian", "x": 2.3, "y": 4.8},
+            {"name": "飞书", "x": 4.8, "y": 1.8},
+            {"name": "Logseq", "x": 3.0, "y": 4.5},
+            {"name": "语雀", "x": 3.8, "y": 2.5}
+          ]
+        }
+      }
+    },
+    {
+      "title": "功能矩阵",
+      "content": "对 8 个核心能力做雷达对比：\n\n- **Notion 强项**：协作、模板生态、AI、移动端、集成\n- **Obsidian 强项**：双向链接、知识图谱、数据主权、插件深度\n- **平手区**：性能（两边都一般，但 Obsidian 本地更稳）\n\n**Notion 4.5/5 的能力**：协作、模板生态\n**Obsidian 4.5/5 的能力**：双向链接、插件生态、数据主权",
+      "chart": {
+        "type": "radar",
+        "title": "Notion vs Obsidian 8 维度对比",
+        "data": {
+          "axes": ["双向链接", "协作", "模板生态", "AI 能力", "移动端", "插件生态", "数据主权", "上手成本"],
+          "series": [
+            {"name": "Notion", "values": [3.5, 4.8, 4.8, 3.8, 4.0, 3.0, 2.0, 4.0]},
+            {"name": "Obsidian", "values": [5.0, 2.0, 2.5, 3.0, 2.5, 5.0, 5.0, 2.8]}
+          ]
+        }
+      }
+    },
+    {
+      "title": "商业模式对比",
+      "content": "两者的商业模式体现了 **「SaaS 订阅 vs 一次性买断」** 的两种典型范式：\n\n### Notion：标准 SaaS\n- **核心收入**：订阅（Plus/Business/Enterprise）\n- **典型客单**：$10-30 / 人 / 月\n- **LTV**：$500-1,500 / 用户（5 年）\n- **优势**：现金流稳定，可持续投入研发\n- **风险**：一旦市场饱和，增长曲线明显\n\n### Obsidian：买断 + 增值\n- **核心收入**：买断 $50（一次性）+ Sync/Publish 订阅\n- **典型客单**：$50（个人），$50 + $8-16/月 = $200/年\n- **LTV**：$300-500 / 用户（5 年）\n- **优势**：用户黏性极高（付了钱就走不了），无续费压力\n- **风险**：营收上限有限，公司增长依赖新功能持续吸引力\n\n**财务对比**（公开估算）：\n- Notion 2024 ARR: **5 亿美元**，估值 100 亿美元\n- Obsidian 2024 营收: 估算 **$3,000-5,000 万**，未公开融资",
+      "chart": {
+        "type": "bar",
+        "title": "Notion vs Obsidian 客单价对比（年付）",
+        "data": {
+          "categories": ["Notion Plus", "Notion Business", "Obsidian 买断", "Obsidian + Sync", "Obsidian Publish"],
+          "values": [120, 180, 50, 96, 192],
+          "unit": " 美元"
+        }
+      }
+    },
+    {
+      "title": "用户体验对比",
+      "content": "### 上手成本\n- **Notion**：5 分钟搭一个工作区，**新手引导极强**，但 Block 哲学需要适应\n- **Obsidian**：10 分钟理解「库 / 文件 / 链接」概念，**插件配置需要折腾**\n\n### 协作流畅度\n- **Notion**：实时多人编辑 + 评论 + @ 提醒，**比肩飞书**\n- **Obsidian**：原生不支持协作，Sync 功能后置 + 体验一般\n\n### 响应速度\n- **Notion**：5,000 块内容后明显变慢，离线模式 2024 才推出\n- **Obsidian**：本地文件，**秒开**，万级文件无压力\n\n### 生态丰富度\n- **Notion**：1,000+ 官方模板 + UGC 模板市场\n- **Obsidian**：**1,500+ 社区插件** + 200+ 主题，是知识管理的 IDE\n\n### 视觉设计\n- **Notion**：极简干净，符合硅谷审美\n- **Obsidian**：基础 UI 朴素，但**主题系统**让你把它变成任何样子",
+      "chart": {
+        "type": "radar",
+        "title": "用户体验 6 维度对比",
+        "data": {
+          "axes": ["上手成本", "协作", "响应速度", "生态", "视觉", "AI"],
+          "series": [
+            {"name": "Notion", "values": [4.2, 4.8, 2.8, 4.5, 4.5, 3.8]},
+            {"name": "Obsidian", "values": [2.8, 2.0, 4.8, 4.5, 4.0, 3.0]}
+          ]
+        }
+      }
+    },
+    {
+      "title": "增长策略对比",
+      "content": "### Notion：PLG 飞轮\n- **SEO 主导**：博客 + YouTube 占流量 60%+\n- **病毒邀请**：免费个人版 → 团队版转化\n- **内容营销**：「我用 Notion 管理生活」类博客持续输出\n- **企业版销售**：2022 年起组建 B2B 团队\n\n### Obsidian：社区驱动\n- **Reddit / Twitter / B 站** 自来水\n- **插件开发者** 既是用户也是布道者\n- **KOL 推荐**：少楠、L先生说 等知识管理 KOL 的背书\n- **零广告投放**：基本靠口碑\n\n**关键差异**：\n- Notion 增长是 **「产品 → 流量 → 转化」** 漏斗\n- Obsidian 增长是 **「社区 → 口碑 → 买断」** 循环",
+      "chart": {
+        "type": "line",
+        "title": "Notion vs Obsidian 用户增长（2019-2024，估算）",
+        "data": {
+          "categories": ["2019", "2020", "2021", "2022", "2023", "2024"],
+          "series": [
+            {"name": "Notion 月活（万）", "values": [100, 600, 1500, 2200, 2800, 3000]},
+            {"name": "Obsidian 累计用户（万）", "values": [0, 10, 50, 100, 150, 200]}
+          ],
+          "unit": ""
+        }
+      }
+    },
+    {
+      "title": "SWOT 矩阵",
+      "content": "### Notion SWOT\n\n| 优势 (S) | 劣势 (W) |\n| --- | --- |\n| • Block 模型 + 模板生态深 5 年护城河 | • 性能 / 离线能力差（最大软肋） |\n| • 协作 + 移动端 难以被超越 | • 大企业渗透慢于飞书 / 钉钉 |\n| • Notion AI 抢先卡位 | • 国际化中文化薄弱 |\n| **机会 (O)** | **威胁 (T)** |\n| • 企业版 / 垂直行业（医疗 / 教育） | • 飞书 / 钉钉 降维打击 |\n| • AI Agent 时代的工作流中枢 | • Mem AI / Capacities 等性能型新对手 |\n| • 出海日韩东南亚 | • 数据隐私监管收紧（GDPR / 中国数据出境） |\n\n### Obsidian SWOT\n\n| 优势 (S) | 劣势 (W) |\n| --- | --- |\n| • 本地 + 数据主权 = 永久护城河 | • 商业化天花板低（买断模式） |\n| • 插件生态深不可测 | • 协作是硬伤，B 端难做 |\n| • 极客 + 知识管理 KOL 死忠 | • 上手门槛高，新用户难增长 |\n| **机会 (O)** | **威胁 (T)** |\n| • AI 集成（Copilot for PKM） | • Notion / Logseq 跨端覆盖 |\n| • 学术 / 研究 / 写作 垂直市场 | • Apple Notes / Bear 等系统级工具迭代 |\n| • 隐私监管收紧利好本地 | • 移动端体验被飞书 / 微信读书反超 |",
+      "chart": {
+        "type": "matrix",
+        "title": "Notion vs Obsidian 战略定位",
+        "data": {
+          "x_label": "市场吸引力 →",
+          "y_label": "↑ 产品竞争力",
+          "points": [
+            {"name": "Notion (S)", "x": 4.5, "y": 4.5},
+            {"name": "Notion (W)", "x": 4.5, "y": 2.5},
+            {"name": "Obsidian (S)", "x": 3.5, "y": 4.5},
+            {"name": "Obsidian (W)", "x": 3.5, "y": 2.0}
+          ]
+        }
+      }
+    },
+    {
+      "title": "战略总结",
+      "content": "### 谁的护城河更深？\n**Notion 短期更深**（生态 + 协作 + 资金），但 **Obsidian 长期更稳**（本地文件 = 数据 = 用户永久资产）。3 年内 Notion 在 SaaS 工具市场仍是 Top 1；5-10 年视角，Obsidian 不会被任何云服务打败。\n\n### 谁更可能赢未来 3 年？\n**Notion 90%，Obsidian 10%**。原因：\n- AI 时代企业更愿意用「能协作 + 能 AI 化」的工具，Notion 提前卡位\n- Obsidian 仍是小众极客产品，不会进入主流\n\n### 给不同身份的建议\n\n| 你是谁 | 选 Notion 的理由 | 选 Obsidian 的理由 |\n| --- | --- | --- |\n| **5 人创业团队** | ✅ 协作 + 模板 + 移动端 | ❌ 协作差 |\n| **个人知识工作者** | 模板丰富但数据在云 | ✅ 数据自有 + 双向链接 |\n| **写作者 / 研究者** | AI 辅助写作 | ✅ 长期沉淀 + 反向链接 |\n| **学生** | ✅ 免费 + 多端同步 | 折腾插件不划算 |\n| **隐私敏感行业**（律师 / 医生） | 数据在云不放心 | ✅ 完全本地 |\n| **创业者要抄** | PLG + 模板 + AI 卖点 | 极客社区运营 + 插件市场 |\n| **投资人** | ✅ 100 亿独角兽 | 营收天花板低，不是好投资标的 |",
+      "chart": {
+        "type": "bar",
+        "title": "Notion vs Obsidian 用户偏好分布（社区调研估算）",
+        "data": {
+          "categories": ["更喜欢 Notion", "更喜欢 Obsidian", "两个都用", "两个都不用"],
+          "values": [55, 25, 15, 5],
+          "unit": "%"
+        }
+      }
+    }
+  ],
+  "appendix": {
+    "data_sources": [
+      "Notion 2024 公开融资材料",
+      "Obsidian 官方博客与创始人 Erica Xu 访谈",
+      "G2 / Capterra 2024 用户评分",
+      "Reddit r/Notion, r/Obsidian 用户调研",
+      "ProductHunt 历史评论"
+    ],
+    "limitations": "本报告基于 2024 年公开信息，部分数据为估算。Obsidian 未上市，具体用户数 / 营收数据可靠性有限。中文市场两款产品渗透率较低，建议结合本地工具（飞书、语雀）做补充决策。"
+  }
+}

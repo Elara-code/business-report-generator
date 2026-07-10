@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>商业分析报告生成器 · WorkBuddy AI</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">📊</span>
+    <div>
+      <div class="brand-title">商业分析报告生成器</div>
+      <div class="brand-sub">WorkBuddy AI · 一键生成图文并茂的商业 / 产品 / 竞品报告</div>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <a href="#" class="link" id="link-history">历史报告</a>
+  </div>
+</header>
+
+<main class="app">
+  <!-- 左侧：表单 -->
+  <aside class="panel">
+    <h2 class="panel-title">新建报告</h2>
+    <form id="form">
+      <div class="field">
+        <label>报告类型</label>
+        <div class="seg" role="radiogroup">
+          <input type="radio" name="type" value="industry" id="t-industry" checked>
+          <label for="t-industry">行业分析</label>
+          <input type="radio" name="type" value="product" id="t-product">
+          <label for="t-product">产品拆解</label>
+          <input type="radio" name="type" value="competitor" id="t-competitor">
+          <label for="t-competitor">竞品对比</label>
+        </div>
+        <p class="hint" id="type-hint">输入一个行业或领域，如「咖啡」「新能源汽车」「SaaS」</p>
+      </div>
+
+      <div class="field">
+        <label for="subject">主题</label>
+        <input type="text" id="subject" placeholder="例如：咖啡 / Notion / Notion vs Obsidian" required>
+      </div>
+
+      <div class="field">
+        <label for="ai">AI 提供商</label>
+        <select id="ai">
+          <option value="mock">🎭 Mock 演示（无需 API）</option>
+          <option value="openai">🤖 OpenAI / 兼容（DeepSeek / 通义等）</option>
+          <option value="workbuddy">💬 WorkBuddy AI（对话式）</option>
+        </select>
+      </div>
+
+      <div class="field" id="preset-field">
+        <label for="preset">演示报告（Mock 模式）</label>
+        <select id="preset">
+          <option value="coffee">☕ 中国现制咖啡行业</option>
+          <option value="notion">📝 Notion 产品拆解</option>
+          <option value="notion-vs-obsidian">⚔️ Notion vs Obsidian</option>
+          <option value="generic">📋 通用占位</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>输出格式</label>
+        <div class="checks">
+          <label class="check"><input type="checkbox" name="formats" value="html" checked> HTML</label>
+          <label class="check"><input type="checkbox" name="formats" value="md" checked> Markdown</label>
+          <label class="check"><input type="checkbox" name="formats" value="pdf"> PDF（需 weasyprint）</label>
+        </div>
+      </div>
+
+      <button type="submit" class="primary" id="submit">🚀 生成报告</button>
+      <button type="button" class="secondary" id="quick-coffee">⚡ 看一份咖啡示范</button>
+    </form>
+
+    <div class="examples">
+      <div class="examples-title">或选择示范报告：</div>
+      <button data-preset="coffee" data-type="industry" data-subject="中国现制咖啡">☕ 咖啡行业</button>
+      <button data-preset="notion" data-type="product" data-subject="Notion">📝 Notion</button>
+      <button data-preset="notion-vs-obsidian" data-type="competitor" data-subject="Notion vs Obsidian">⚔️ Notion vs Obsidian</button>
+    </div>
+  </aside>
+
+  <!-- 右侧：日志 + 预览 -->
+  <section class="content">
+    <div class="log-panel">
+      <div class="log-head">
+        <span>运行日志</span>
+        <button id="clear-log" class="link">清空</button>
+      </div>
+      <pre id="log"></pre>
+    </div>
+
+    <div class="preview-panel">
+      <div class="preview-head">
+        <span>报告预览</span>
+        <span id="preview-status" class="muted">尚未生成</span>
+      </div>
+      <iframe id="preview" sandbox="allow-same-origin"></iframe>
+    </div>
+  </section>
+</main>
+
+<!-- 历史报告抽屉 -->
+<div class="drawer" id="drawer" hidden>
+  <div class="drawer-mask"></div>
+  <div class="drawer-body">
+    <div class="drawer-head">
+      <h3>历史报告</h3>
+      <button class="link" id="close-drawer">关闭</button>
+    </div>
+    <div id="history-list">加载中…</div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
