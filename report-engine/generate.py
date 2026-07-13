@@ -68,25 +68,33 @@ def load_prompt(report_type: str, subject: str) -> tuple[str, str]:
 # LLM 调用：带重试 + 超时 + 校验
 # ---------------------------------------------------------------------------
 
-def call_llm_with_retry(provider, system: str, user: str, *, max_retries: int = 2, timeout: int = 60) -> Report:
-    """调 LLM，最多重试 max_retries 次，每次失败用更严的 prompt 重新尝试。
+def call_llm_with_retry(provider, system: str, user: str, *, max_retries: int = 1, timeout: int = 60) -> Report:
+    """调 LLM，3 步降级（v0.3）：
 
-    返回值保证是 Report（Pydantic 强校验过）。
-    失败则抛 RuntimeError。
+    1. 第一次：尝试带 json_mode（模型支持时）
+    2. 失败 → 第二次：去掉 json_mode，靠 prompt 强约束
+    3. 再失败 → 不再重试 LLM，直接抛错（前端显示错误，建议用户换模型）
+
+    关键变更：相比 v0.2 的"重试 2 次"更激进 —— 经验上重试超过 1 次在国产模型上
+    几乎不会让格式变好，反而增加 API 成本 + 拉长等待时间。
     """
     last_err: Exception | None = None
-    for attempt in range(max_retries + 1):
+    use_json_mode = getattr(provider, "json_mode_supported", True)
+
+    for attempt, json_mode in enumerate([use_json_mode, False]):
         try:
-            raw = provider.complete(system, user, json_mode=True)
+            raw = provider.complete(system, user, json_mode=json_mode)
             data = extract_json(raw)
-            # 第一次成功，subject/title 后面由 caller 强制覆盖
             return Report.model_validate(data)
         except Exception as e:
             last_err = e
-            print(f"  ⚠️  LLM 尝试 {attempt+1} 失败: {e}", file=sys.stderr)
+            tag = f"json_mode={json_mode}"
+            print(f"  ⚠️  LLM 尝试 {attempt+1} ({tag}) 失败: {e}", file=sys.stderr)
             if attempt < max_retries:
-                user += "\n\n【重要】请只输出严格合法的 JSON，不要任何解释文字。"
-    raise RuntimeError(f"LLM 调用在 {max_retries+1} 次尝试后仍失败: {last_err}")
+                # 下次重试时强化 prompt
+                user += "\n\n【重要】请只输出严格合法的 JSON，不要任何解释文字或 markdown 围栏。"
+
+    raise RuntimeError(f"LLM 调用在 2 次降级后仍失败: {last_err}")
 
 
 # ---------------------------------------------------------------------------
@@ -151,18 +159,32 @@ def make_out_dir(root: str, report_type: str, subject: str) -> str:
 # ---------------------------------------------------------------------------
 
 def do_generate(report_type: str, subject: str, ai: str, preset: str | None,
-                formats: list[str], out_root: str, from_json: str | None) -> tuple[Report, dict[str, str], str]:
-    """统一处理 CLI 与 HTTP 入口。返回 (Report, outputs, target_dir)。"""
+                formats: list[str], out_root: str, from_json: str | None,
+                on_progress=None) -> tuple[Report, dict[str, str], str]:
+    """统一处理 CLI 与 HTTP 入口。返回 (Report, outputs, target_dir)。
+
+    on_progress 回调用于 SSE 流式响应：
+        on_progress(phase: str, message: str) -> None
+        phase ∈ {"init", "llm", "render", "done", "error"}
+    """
     if report_type not in schemas.SUPPORTED_TYPES:
         raise ValueError(f"type 必须是 {schemas.SUPPORTED_TYPES}，收到: {report_type}")
 
+    def _progress(phase: str, msg: str):
+        print(f"[{phase}] {msg}")
+        if on_progress:
+            try:
+                on_progress(phase, msg)
+            except Exception:
+                pass
+
     # 1) 取原始数据
+    _progress("init", f"开始生成 {report_type} 报告：{subject}")
     if from_json:
+        _progress("init", f"📂 从 {from_json} 读取")
         with open(from_json, "r", encoding="utf-8") as f:
             raw = f.read()
-        print(f"📂 从 {from_json} 读取报告")
         data = extract_json(raw)
-        # 校验
         report = Report.model_validate(data)
     else:
         try:
@@ -170,26 +192,28 @@ def do_generate(report_type: str, subject: str, ai: str, preset: str | None,
         except Exception as e:
             raise RuntimeError(f"LLM 初始化失败: {e}") from e
         system, user = load_prompt(report_type, subject)
-        print(f"🤖 调 LLM ({provider.name}) 生成 {report_type} 报告：{subject}")
+        _progress("llm", f"🤖 调 LLM ({provider.name}) ...")
         report = call_llm_with_retry(provider, system, user)
+        _progress("llm", "✅ LLM 返回完成")
 
-    # 2) 强制覆盖关键 meta（防 preset 错配）
-    #    注意：使用 coerce_report 同时也能跑 Pydantic 校验链
+    # 2) 强制覆盖关键 meta
     raw_dict = report.model_dump()
     coerced = coerce_report(raw_dict, report_type, subject)
     report = coerced
 
     # 3) 输出
+    _progress("render", "💾 写入 report.json ...")
     target = make_out_dir(out_root, report_type, subject)
     save_report_json(report, target)
+    _progress("render", f"🎨 渲染 {','.join(formats)} ...")
     outputs = render_formats(report, formats, target)
-    print(f"✅ 已生成报告 → {target}")
+    _progress("done", f"✅ 已生成报告 → {target}")
     for k, v in outputs.items():
         if k.endswith("_error"):
-            print(f"  ⚠️  {k}: {v}")
+            _progress("done", f"⚠️  {k}: {v}")
         else:
             rel = os.path.relpath(v, HERE)
-            print(f"  • {k}: {rel}")
+            _progress("done", f"  • {k}: {rel}")
     return report, outputs, target
 
 
@@ -240,11 +264,18 @@ def cmd_serve(args) -> int:
 
         def do_POST(self):  # noqa
             if self.path == "/api/generate":
-                return self._handle_generate()
+                return self._handle_generate_sse()
             return self._json({"error": "Not Found"}, 404)
 
-        # ----- /api/generate -----
-        def _handle_generate(self):
+        # ----- /api/generate（SSE 流式） -----
+        def _handle_generate_sse(self):
+            """v0.3: 改用 SSE，前端能实时看到 init/llm/render/done 4 个阶段。
+
+            协议：
+              Content-Type: text/event-stream
+              每条 event 形如：data: {"phase": "llm", "message": "..."}\n\n
+              最后一条 event 带 done=true，前端可关闭连接。
+            """
             length = int(self.headers.get("Content-Length", 0))
             try:
                 body = self.rfile.read(length).decode("utf-8")
@@ -258,6 +289,24 @@ def cmd_serve(args) -> int:
             formats = req.get("formats", ["html"])
             preset = req.get("preset")
 
+            # SSE 头
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("X-Accel-Buffering", "no")  # 禁 nginx 缓冲
+            self.end_headers()
+
+            def emit(phase: str, message: str, **extra):
+                payload = {"phase": phase, "message": message, **extra}
+                line = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                try:
+                    self.wfile.write(line.encode("utf-8"))
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    # 客户端断开，吞掉异常
+                    pass
+
             try:
                 report, outputs, target = do_generate(
                     report_type=report_type,
@@ -267,16 +316,19 @@ def cmd_serve(args) -> int:
                     formats=formats,
                     out_root=reports_dir,
                     from_json=None,
+                    on_progress=lambda phase, msg: emit(phase, msg),
                 )
+                # 终态事件
+                emit("complete", "✅ 报告已生成", done=True, ok=True,
+                     dir=os.path.relpath(target, workspace_root),
+                     title=report.meta.title,
+                     confidence=(report.meta.confidence.model_dump() if report.meta.confidence else None),
+                     files={k: os.path.relpath(v, workspace_root) for k, v in outputs.items()},
+                     preview=next((f"reports/{os.path.basename(target)}/report.html"
+                                    for k in ("html",) if k in outputs), None))
             except Exception as e:
-                return self._json({"error": str(e)}, 500)
-
-            return self._json({
-                "ok": True,
-                "dir": os.path.relpath(target, workspace_root),
-                "title": report.meta.title,
-                "files": {k: os.path.relpath(v, workspace_root) for k, v in outputs.items()},
-            })
+                emit("error", f"❌ {e}", done=True, ok=False, error=str(e))
+            return
 
         # ----- /api/history -----
         def _json_history(self):

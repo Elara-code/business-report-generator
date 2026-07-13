@@ -104,6 +104,7 @@ class OpenAIProvider:
         self.client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout, max_retries=max_retries)
         self.model = model
         self.timeout = timeout
+        self.json_mode_supported = _detect_json_mode_support(model, base_url)
 
     def complete(self, system: str, user: str, *, json_mode: bool = True) -> str:
         kwargs: dict[str, Any] = {
@@ -115,10 +116,57 @@ class OpenAIProvider:
             "temperature": 0.4,
             "timeout": self.timeout,
         }
-        if json_mode:
+        # v0.3: 智能降级 —— 只在模型支持时启用 response_format
+        if json_mode and self.json_mode_supported:
             kwargs["response_format"] = {"type": "json_object"}
         resp = self.client.chat.completions.create(**kwargs)
         return resp.choices[0].message.content or ""
+
+
+# ---------------------------------------------------------------------------
+# v0.3: JSON mode 能力检测
+# ---------------------------------------------------------------------------
+
+# 已知不支持 response_format={"type": "json_object"} 的模型
+# 经验清单：很多国产/小模型会忽略该字段，fallback 到 prompt 强约束更稳
+NO_JSON_MODE_MODELS = {
+    # DeepSeek 系列早期版本
+    "deepseek-chat",
+    "deepseek-coder",
+    # 通义早期
+    "qwen-turbo",
+    "qwen-plus",
+    # 月之暗面
+    "moonshot-v1-8k",
+    "moonshot-v1-32k",
+    "moonshot-v1-128k",
+    # 智谱
+    "glm-4",
+    "chatglm3-6b",
+    # 百川
+    "baichuan2-turbo",
+    "baichuan3-turbo",
+}
+
+
+def _detect_json_mode_support(model: str, base_url: str) -> bool:
+    """根据模型名 + base_url 推断是否支持 JSON mode。
+
+    规则：
+    1. base_url 是 OpenAI 官方 → 全部支持
+    2. 模型名在黑名单 → 不支持
+    3. 默认假定支持（保守策略）
+    """
+    base_lower = (base_url or "").lower()
+    if "api.openai.com" in base_lower:
+        return True
+    m = (model or "").lower()
+    if m in NO_JSON_MODE_MODELS:
+        return False
+    # 国产模型默认保守：不开 JSON mode，交给 prompt 强约束
+    if any(kw in m for kw in ("deepseek", "qwen", "moonshot", "glm", "baichuan", "yi-", "minimax")):
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------

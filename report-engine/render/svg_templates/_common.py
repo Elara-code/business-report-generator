@@ -43,6 +43,27 @@ def text_width(s: str, size: int = 12, ratio: float = 0.6) -> float:
     return len(str(s)) * size * ratio
 
 
+def truncate_label(s: str, max_chars: int = 10, suffix: str = "…") -> str:
+    """单点截断超长标签，避免 SVG 渲染时溢出/重叠。
+
+    规则：
+    - None / 空 → 返回空字符串
+    - 长度 ≤ max_chars → 原样返回
+    - 长度 > max_chars → 截到 max_chars-1 + suffix（中文字符按 1 字算）
+
+    设计取舍（详见 v0.3 设计文档）：
+    - 选单点截断而非自动折行，因为 SVG 折行需要 mea sureText + 折行算法，
+      实现复杂度高，收益低（95% 标签 < 10 字）。
+    - 真正的根因在 LLM 输出，由 prompt 约束更优；这里只是兜底。
+    """
+    s = str(s or "").strip()
+    if not s:
+        return ""
+    if len(s) <= max_chars:
+        return s
+    return s[: max(1, max_chars - 1)] + suffix
+
+
 def svg_header(width: int, height: int, title: str | None = None) -> str:
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '

@@ -1,12 +1,44 @@
 """Pydantic 模型 —— 报告结构的运行时校验。
 
 LLM 输出可能字段缺失、字段拼错、类型错误，必须在校验层兜底。
+v0.3 新增：置信度评分模型。
 """
 from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
+
+
+# ---------------------------------------------------------------------------
+# 置信度
+# ---------------------------------------------------------------------------
+
+ConfidenceLevel = Literal["high", "medium", "low", "unknown"]
+"""
+high   —— LLM 自评数据可信，且数据源/局限性都有交代
+medium —— 有数据但存在估算 / 时效问题
+low    —— LLM 自评大量依赖推断 / 知识盲区
+unknown —— LLM 未给出置信度（默认）
+"""
+
+
+class ConfidenceInfo(BaseModel):
+    """报告级置信度（v0.3 新增）。
+
+    设计目标：让用户立刻知道"这份报告能不能拿去做投资决策"。
+    """
+
+    level: ConfidenceLevel = "unknown"
+    score: float = Field(default=0.5, ge=0.0, le=1.0,
+                         description="0-1 之间，越高越可信")
+    reasoning: str = Field(default="", description="LLM 自评依据，1-2 句话")
+    factors: list[str] = Field(default_factory=list,
+                                description="影响置信度的关键因素（事实/估算/推断/AI 判断）")
+    data_cutoff: str = Field(default="", description="LLM 知识截止时间")
+    recommended_use: str = Field(default="", description="建议用途（仅供快速浏览/可作决策参考/可直接用于投资）")
+
+    model_config = {"extra": "allow"}
 
 
 # ---------------------------------------------------------------------------
@@ -18,6 +50,7 @@ class ReportMeta(BaseModel):
     subject: str = ""
     type: Literal["industry", "product", "competitor"] = "industry"
     generated_at: str = ""
+    confidence: Optional[ConfidenceInfo] = None  # v0.3 新增
 
     model_config = {"extra": "allow"}
 

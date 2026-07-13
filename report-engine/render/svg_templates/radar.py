@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 
-from ._common import PALETTE, SERIES_COLORS, esc, svg_footer, svg_header
+from ._common import PALETTE, SERIES_COLORS, esc, svg_footer, svg_header, truncate_label
 
 
 def render(data: dict, title: str | None = None, width: int = 520, height: int = 460) -> str:
@@ -48,7 +48,7 @@ def render(data: dict, title: str | None = None, width: int = 520, height: int =
             f'<line x1="{cx}" y1="{cy}" x2="{x_end:.1f}" y2="{y_end:.1f}" '
             f'stroke="{PALETTE["border"]}"/>'
         )
-        # 标签在更外
+        # 标签在更外（截断到 6 字避免与网格重叠）
         lx = cx + (r + 22) * math.cos(a)
         ly = cy + (r + 22) * math.sin(a)
         anchor = "middle"
@@ -56,9 +56,10 @@ def render(data: dict, title: str | None = None, width: int = 520, height: int =
             anchor = "start"
         elif math.cos(a) < -0.3:
             anchor = "end"
+        ax_disp = truncate_label(ax, max_chars=6)
         parts.append(
             f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="{anchor}" dominant-baseline="middle" '
-            f'font-size="12" fill="{PALETTE["text"]}">{esc(ax)}</text>'
+            f'font-size="12" fill="{PALETTE["text"]}">{esc(ax_disp)}</text>'
         )
 
     # series 多边形

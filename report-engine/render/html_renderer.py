@@ -109,6 +109,9 @@ def render(report: dict) -> str:
 </section>
 """
 
+    # 置信度徽章（v0.3）
+    confidence_html = _render_confidence_badge(meta.get("confidence"))
+
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -124,6 +127,7 @@ def render(report: dict) -> str:
       <span class="badge">{_e({"industry":"行业","product":"产品","competitor":"竞品"}.get(meta.get("type",""), "分析"))}</span>
       <span class="muted">·</span>
       <span class="muted">{_e(meta.get("subject", ""))}</span>
+      {confidence_html}
     </div>
     <h1 class="hero-title">{_e(meta.get("title", "商业分析报告"))}</h1>
     <div class="hero-date">生成于 {_e(meta.get("generated_at", datetime.now().isoformat(timespec="seconds")))}</div>
@@ -145,6 +149,41 @@ def render(report: dict) -> str:
 </body>
 </html>"""
     return html
+
+
+# ---------------------------------------------------------------------------
+# 置信度徽章（v0.3 新增）
+# ---------------------------------------------------------------------------
+
+CONFIDENCE_STYLES = {
+    "high":    {"color": "#10b981", "label": "高置信", "icon": "✓"},
+    "medium":  {"color": "#f59e0b", "label": "中置信", "icon": "!"},
+    "low":     {"color": "#ef4444", "label": "低置信", "icon": "⚠"},
+    "unknown": {"color": "#94a3b8", "label": "未评估", "icon": "?"},
+}
+
+
+def _render_confidence_badge(conf: dict | None) -> str:
+    """渲染置信度徽章 + 悬浮提示。"""
+    if not conf:
+        return ""
+    level = conf.get("level", "unknown")
+    style = CONFIDENCE_STYLES.get(level, CONFIDENCE_STYLES["unknown"])
+    score = conf.get("score", 0.5)
+    reasoning = conf.get("reasoning", "")
+    recommended = conf.get("recommended_use", "")
+
+    tooltip_parts = [f"<b>置信度评分：{score:.2f}/1.0</b>"]
+    if reasoning:
+        tooltip_parts.append(f"<div style='margin-top:6px'>{_e(reasoning)}</div>")
+    if recommended:
+        tooltip_parts.append(f"<div style='margin-top:6px;font-style:italic'>建议用途：{_e(recommended)}</div>")
+    tooltip = "".join(tooltip_parts).replace('"', '&quot;')
+
+    return f'''
+<span class="confidence-badge" style="background:{style["color"]}1a;color:{style["color"]};border:1px solid {style["color"]}66;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;cursor:help" title="{tooltip}">
+  {style["icon"]} {style["label"]}
+</span>'''
 
 
 def _e(s: str) -> str:

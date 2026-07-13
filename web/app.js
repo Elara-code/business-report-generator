@@ -78,34 +78,77 @@ async function doSubmit() {
   $('#preview-status').textContent = '生成中…';
   log(`开始生成：${type} / ${subject} / ${ai}${preset ? ' / preset=' + preset : ''}`, 'info');
 
+  // v0.3: 用 fetch + ReadableStream 解析 SSE
   try {
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, subject, ai, preset, formats }),
     });
-    const data = await res.json();
-    if (!data.ok) {
+    if (!res.ok && res.headers.get('content-type')?.includes('application/json')) {
+      // 走老路径（错误响应是 JSON）
+      const data = await res.json();
       log('❌ 生成失败: ' + (data.error || '未知错误'), 'err');
-      if (data.raw) log('  原始输出片段: ' + data.raw.slice(0, 200), 'err');
+      $('#preview-status').textContent = '生成失败';
+      return;
+    }
+    // SSE 流式
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let finalData = null;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      // 解析 SSE event (data: ...\n\n)
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
+      for (const chunk of lines) {
+        const m = chunk.match(/^data:\s*(.+)$/m);
+        if (!m) continue;
+        try {
+          const evt = JSON.parse(m[1]);
+          log(`  ${evt.message || ''}`, evt.phase === 'error' ? 'err' : (evt.phase === 'llm' || evt.phase === 'render' ? 'info' : ''));
+          if (evt.done) {
+            finalData = evt;
+          }
+        } catch (e) {
+          log('  [SSE 解析失败] ' + chunk.slice(0, 100), 'err');
+        }
+      }
+    }
+    if (!finalData) {
+      log('❌ 未收到完成事件', 'err');
+      $('#preview-status').textContent = '生成失败';
+      return;
+    }
+    if (!finalData.ok) {
+      log('❌ 生成失败: ' + (finalData.error || '未知错误'), 'err');
       $('#preview-status').textContent = '生成失败';
       return;
     }
     log('✅ 报告已生成', 'ok');
-    if (data.title) log(`  📄 ${data.title}`);
-    Object.entries(data.files || {}).forEach(([k, v]) => {
+    if (finalData.title) log(`  📄 ${finalData.title}`);
+    // 置信度
+    const conf = finalData.confidence;
+    if (conf) {
+      const tag = {high: '高', medium: '中', low: '低', unknown: '未评估'}[conf.level] || conf.level;
+      log(`  📊 置信度：${tag} (${(conf.score * 100).toFixed(0)}%) — ${conf.reasoning || ''}`,
+          conf.level === 'low' ? 'warn' : '');
+    }
+    Object.entries(finalData.files || {}).forEach(([k, v]) => {
       if (k.endsWith('_error')) log(`  ⚠️  ${k}: ${v}`, 'warn');
       else log(`  • ${k}: ${v}`);
     });
     // 预览 HTML
-    const htmlFile = data.files && data.files.html;
+    const htmlFile = finalData.preview || (finalData.files && finalData.files.html);
     if (htmlFile) {
       $('#preview').src = '/' + htmlFile;
       $('#preview-status').textContent = '就绪 · ' + htmlFile;
-    } else if (data.files && data.files.md) {
-      // 没 HTML 就用 markdown 兜底
-      $('#preview').src = '/' + data.files.md;
-      $('#preview-status').textContent = '就绪（仅 Markdown）· ' + data.files.md;
+    } else if (finalData.files && finalData.files.md) {
+      $('#preview').src = '/' + finalData.files.md;
+      $('#preview-status').textContent = '就绪（仅 Markdown）· ' + finalData.files.md;
     }
   } catch (e) {
     log('❌ 网络错误: ' + e.message, 'err');

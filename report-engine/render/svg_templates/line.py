@@ -12,7 +12,7 @@ data 格式：
 """
 from __future__ import annotations
 
-from ._common import PALETTE, SERIES_COLORS, esc, svg_footer, svg_header
+from ._common import PALETTE, SERIES_COLORS, esc, svg_footer, svg_header, truncate_label
 
 
 def render(data: dict, title: str | None = None, width: int = 720, height: int = 320) -> str:
@@ -46,13 +46,14 @@ def render(data: dict, title: str | None = None, width: int = 720, height: int =
             f'<text x="{pad_l - 8}" y="{y + 4}" text-anchor="end" font-size="11" '
             f'fill="{PALETTE["muted"]}">{v:.0f}</text>'
         )
-    # X 轴标签
+    # X 轴标签（截断到 8 字，年份/季度等短标签不受影响）
     n = len(cats)
     for i, c in enumerate(cats):
+        c_disp = truncate_label(c, max_chars=8)
         x = pad_l + chart_w * i / max(n - 1, 1)
         parts.append(
             f'<text x="{x}" y="{pad_t + chart_h + 20}" text-anchor="middle" '
-            f'font-size="11" fill="{PALETTE["muted"]}">{esc(c)}</text>'
+            f'font-size="11" fill="{PALETTE["muted"]}">{esc(c_disp)}</text>'
         )
 
     # 各 series
@@ -76,10 +77,11 @@ def render(data: dict, title: str | None = None, width: int = 720, height: int =
     for si, s in enumerate(series):
         color = SERIES_COLORS[si % len(SERIES_COLORS)]
         ly = pad_t + 20 + si * 22
+        s_name = truncate_label(s.get("name", ""), max_chars=10)
         parts.append(f'<rect x="{legend_x}" y="{ly - 10}" width="14" height="14" fill="{color}" rx="3"/>')
         parts.append(
             f'<text x="{legend_x + 22}" y="{ly + 1}" font-size="12" '
-            f'fill="{PALETTE["text"]}">{esc(s.get("name", ""))} ({esc(unit)})</text>'
+            f'fill="{PALETTE["text"]}">{esc(s_name)} ({esc(unit)})</text>'
         )
 
     parts.append(svg_footer())

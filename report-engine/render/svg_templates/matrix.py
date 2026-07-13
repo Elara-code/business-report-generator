@@ -12,7 +12,7 @@ data 格式：
 """
 from __future__ import annotations
 
-from ._common import PALETTE, SERIES_COLORS, esc, svg_footer, svg_header
+from ._common import PALETTE, SERIES_COLORS, esc, svg_footer, svg_header, truncate_label
 
 
 def render(data: dict, title: str | None = None, width: int = 560, height: int = 480) -> str:
@@ -85,11 +85,12 @@ def render(data: dict, title: str | None = None, width: int = 560, height: int =
         color = SERIES_COLORS[i % len(SERIES_COLORS)]
         parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="11" fill="{color}" fill-opacity="0.25"/>')
         parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="6" fill="{color}"/>')
-        # 标签：交错放右上 / 右下避免重叠
+        # 标签：交错放右上 / 右下避免重叠（截断到 8 字）
         offset_y = -14 if i % 2 == 0 else 18
+        name_disp = truncate_label(p.get("name", ""), max_chars=8)
         parts.append(
             f'<text x="{px + 12}" y="{py + offset_y}" font-size="12" font-weight="600" '
-            f'fill="{PALETTE["text"]}">{esc(p.get("name", ""))}</text>'
+            f'fill="{PALETTE["text"]}">{esc(name_disp)}</text>'
         )
 
     parts.append(svg_footer())
