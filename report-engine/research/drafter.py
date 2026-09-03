@@ -88,7 +88,7 @@ def _assemble(plan: ResearchPlan, chain: EvidenceChain) -> dict:
     summary_lines.append(f"涉及的市场、增速与玩家数据均标注来源与核实状态；无法确认的推断单独标注。")
     summary = "\n".join(summary_lines)
 
-    # 分章节
+    # 分章节（每节都尝试配图）
     sections = []
     sec_no = 0
     for title, cats in SECTION_MAP.get(plan.report_type, SECTION_MAP["industry"]):
@@ -102,16 +102,11 @@ def _assemble(plan: ResearchPlan, chain: EvidenceChain) -> dict:
         sections.append({
             "title": title,
             "content": "\n".join(lines),
-            "chart": None,
+            "chart": _build_chart(matched, cmap),
         })
 
     if not sections:
-        sections.append({"title": "关键事实与证据", "content": summary, "chart": None})
-
-    # 数值型事实 → 生成一张 bar 图（市场规模类优先）
-    chart = _build_chart(facts, cmap)
-    if chart and sections:
-        sections[0]["chart"] = chart
+        sections.append({"title": "关键事实与证据", "content": summary, "chart": _build_chart(facts, cmap)})
 
     return {
         "meta": {
@@ -187,7 +182,7 @@ def _llm_draft(llm: LLMCallable, plan: ResearchPlan, chain: EvidenceChain) -> di
         f"研究范围：市场={plan.market}，时间={plan.time_range}，读者={plan.audience}\n\n"
         f"## 事实清单（只允许引用这里的内容）\n" + "\n".join(fact_lines) +
         f"\n\n## 来源清单\n" + "\n".join(src_lines) +
-        f"\n\n请生成 8-9 个章节的报告 JSON，正文所有量化论断挂 [N] 引用。JSON 结构：\n{schema_hint}"
+        f"\n\n## 写作要求（必须严格遵守）\n{schema_hint}"
     )
     raw = llm(_DRAFT_SYSTEM, user, json_mode=True)
     text = raw.strip()
@@ -200,24 +195,39 @@ def _llm_draft(llm: LLMCallable, plan: ResearchPlan, chain: EvidenceChain) -> di
 
 def _report_schema_hint() -> str:
     return """
+## 报告风格：可视化优先（读者是普通读者，拒绝大段文字）
+整份报告必须以图表为主、文字为辅，让读者"看图即懂"。每个章节按下述结构输出：
+
 {
   "meta": {"title": "报告标题", "subject": "主题", "type": "industry|product|competitor"},
-  "summary": "150-250 字执行摘要（结论先行，带 [N] 引用）",
+  "summary": "120-180 字执行摘要（结论先行，带 [N] 引用，写成短句，不堆数据）",
   "sections": [
-    {"title": "章节标题", "content": "Markdown 正文（带 [N] 引用）",
-     "chart": {"type": "bar|line|radar|canvas|value_chain|matrix|null", "title": "", "data": {}}}
+    {"title": "章节标题",
+     "content": "简短导语（2-3 行，60-120 字，带 [N] 引用）",
+     "key_points": ["要点1", "要点2", "要点3", "要点4"],
+     "chart": {"type": "...", "title": "...", "data": {...}}}
   ],
   "appendix": {"data_sources": ["来源标题"], "limitations": "局限性说明"}
 }
 
-【chart.data 字段必须严格按下表输出；没有可结构化数值的章节请用 type=null】
-- bar（横向条形）: {"categories": ["A","B"], "values": [25, 18], "unit": "%"}
-- line（折线）: {"categories": ["2024","2025"], "series": [{"name":"规模","values":[100,130]}], "unit": "亿元"}
-- radar（雷达，维度打分 0-5）: {"axes": ["效率","成本"], "values": [4, 3]}
-- canvas（商业模式画布，9 宫格）: {"key_partners":[...], "key_activities":[...], "value_propositions":[...], "customer_relationships":[...], "key_resources":[...], "channels":[...], "customer_segments":[...], "cost_structure":[...], "revenue_streams":[...]}
-- value_chain（价值链）: {"stages": [{"name":"上游","items":["原材料"],"margin":"高"}, {"name":"中游","items":["生产"],"margin":"中"}]}
-- matrix（2x2 象限）: {"x_label":"易用性","y_label":"深度","points":[{"name":"产品A","x":4,"y":3}]}
-【禁止】data 里写中文 key（如 items/note/dimensions/scenarios/方向），禁止把文字结论当数值；各字段必须与上表完全一致。
+## 每节都必须配 chart（共 8-9 节，仅当该节确实无任何可结构化信息时才允许 type=null，且这种情况尽量少）
+### 图表选择指南（按内容匹配最合适的图，把定性信息也结构化）：
+- 数值指标 / 规模 / 份额 / 增速 → bar：{"categories":["A","B"],"values":[25,18],"unit":"%"}
+- 随时间变化 / 趋势 → line：{"categories":["2024","2025"],"series":[{"name":"规模","values":[100,130]}],"unit":"亿元"}
+- 多维度的强弱评估（哪怕只是定性打分 1-5） → radar：{"axes":["效率","成本","体验"],"values":[4,3,2]}
+- 产业链 / 价值链环节 → value_chain：{"stages":[{"name":"上游","items":["原材料"],"margin":"高"},{"name":"中游","items":["生产"],"margin":"中"}]}
+- 两个维度上定位多个玩家 / 情景 → matrix：{"x_label":"X","y_label":"Y","points":[{"name":"产品A","x":4,"y":3}]}
+- 商业模式 / 能力要素拆解 → canvas：{"key_partners":[...],"key_activities":[...],"value_propositions":[...],"customer_relationships":[...],"key_resources":[...],"channels":[...],"customer_segments":[...],"cost_structure":[...],"revenue_streams":[...]}
+- 转化 / 漏斗流程 → funnel：{"stages":[{"name":"访问","value":1000},{"name":"注册","value":300}]}
+### chart.data 纪律：
+- 数值必须来自事实清单，禁止编造；
+- 定性评估（radar/matrix/canvas）的分值或条目须源自事实内容，并在 data 里用 "note"/"说明" 标注"定性评估"；
+- 实在无法结构化时，data 里放 {"note": "一句话说明"} 即可，渲染端会显示成说明卡。
+
+## content 与 key_points 纪律：
+- content 只写简短导语，禁止长段落；
+- key_points 每节 3-5 条，每条一行、≤30 字，把正文里所有量化论断挂 [N] 引用；
+- 事实清单中标"估算/待确认/冲突"的内容，明确写"（估算）""（待确认）""（两种口径）"，不得写成确定结论。
 """
 
 

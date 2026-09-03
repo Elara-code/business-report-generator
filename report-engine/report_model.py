@@ -78,6 +78,7 @@ class Section(BaseModel):
     title: str
     content: str = ""
     chart: Optional[Chart] = None
+    key_points: Optional[list[str]] = None  # 可视化优先：每节要点（一行一条）
 
     model_config = {"extra": "allow"}
 
@@ -159,5 +160,21 @@ def coerce_report(raw: Any, report_type: str, subject: str, *,
     raw.setdefault("summary", "")
     raw.setdefault("sections", [])
     raw.setdefault("appendix", {"data_sources": [], "limitations": ""})
+
+    # 归一化 chart：LLM 可能输出 "chart": null / {"type": null} / 未知类型，
+    # 直接进 Pydantic 的 Literal 校验会崩，这里统一归一化（未知类型降级为 null=不渲染图）。
+    _VALID_CHART = {"bar", "line", "radar", "canvas", "funnel", "value_chain", "matrix", "null"}
+    for sec in raw.get("sections", []):
+        if not isinstance(sec, dict):
+            continue
+        ch = sec.get("chart")
+        if ch is None:
+            sec["chart"] = {"type": "null"}
+        elif isinstance(ch, dict):
+            t = ch.get("type")
+            if t is None:
+                ch["type"] = "null"
+            elif not isinstance(t, str) or t not in _VALID_CHART:
+                ch["type"] = "null"
 
     return Report.model_validate(raw)

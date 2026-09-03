@@ -206,10 +206,12 @@ def do_generate(report_type: str, subject: str, ai: str, preset: str | None,
             searcher, warn = get_searcher(prefer="curated")
             llm = None
         else:
-            provider = get_provider(ai, preset=preset, timeout=90)
+            provider = get_provider(ai, preset=preset, timeout=240)
             def _complete(system: str, user: str, json_mode: bool = True) -> str:
                 # 先按请求模式调用；失败则降级为纯文本重试（部分国产模型不支持
                 # response_format=json_object），仍失败才抛错，由流水线兜底。
+                # 注意：draft 阶段要求 8 节每节配图 + 要点，LLM 输出可达 5000+ 字符，
+                # 实测耗时可达 3 分钟以上，故超时放宽到 240s（见 get_provider timeout）。
                 last_err: Exception | None = None
                 modes = [json_mode, False] if json_mode else [False]
                 for jm in modes:

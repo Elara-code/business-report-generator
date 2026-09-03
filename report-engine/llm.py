@@ -92,7 +92,7 @@ class WorkBuddyProvider(MockProvider):
 class OpenAIProvider:
     name = "openai"
 
-    def __init__(self, timeout: int = 60, max_retries: int = 2):
+    def __init__(self, timeout: int = 240, max_retries: int = 2):
         from openai import OpenAI
         api_key = os.environ.get("OPENAI_API_KEY", "").strip()
         if not api_key:

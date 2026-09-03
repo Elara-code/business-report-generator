@@ -176,9 +176,9 @@ body {
 
 /* ----- Charts ----- */
 .chart-wrap {
-  margin: 24px 0;
-  padding: 20px;
-  background: #fafbfc;
+  margin: 20px 0;
+  padding: 22px;
+  background: #fbfcfe;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   overflow-x: auto;
@@ -195,6 +195,37 @@ body {
   border-radius: 6px;
   font-size: 13px;
 }
+
+/* ----- Key Points（可视化优先：文字精炼、要点一行一条） ----- */
+.key-points {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+}
+.key-points li {
+  position: relative;
+  padding: 10px 14px 10px 34px;
+  background: #f8fafc;
+  border: 1px solid #eef2f6;
+  border-radius: 9px;
+  font-size: 13.5px;
+  color: #334155;
+  line-height: 1.65;
+}
+.key-points li::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 16px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2563eb;
+}
+.key-points li p { margin: 0; display: inline; }
 
 /* ----- Appendix ----- */
 .appendix {

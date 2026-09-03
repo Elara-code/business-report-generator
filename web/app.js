@@ -308,7 +308,7 @@ async function doSubmit() {
           setStepMsg(PHASE_STEP[phase], evt.message || '');
           setRunBadge(({ parse: '正在解析任务…', search: '正在检索公开信息…', filter: '正在筛选来源…',
                          extract: '正在抽取事实（LLM 处理中，约 1-2 分钟）…', verify: '正在交叉验证…',
-                         draft: '正在证据驱动生成（LLM 起草中，约 1-2 分钟）…',
+                         draft: '正在生成报告（LLM 起草中，约 2-4 分钟，请耐心等待）…',
                          render: '正在渲染导出…' })[phase] || phase, true);
         }
       }

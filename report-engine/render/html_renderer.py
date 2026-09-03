@@ -81,6 +81,22 @@ def _md(text: str, max_ref: int = 0) -> str:
     return _attach_citations(cleaned, max_ref=max_ref)
 
 
+def _render_key_points(points, max_ref: int = 0) -> str:
+    """渲染每节的要点列表（可视化优先风格：文字精炼、要点一行一条）。"""
+    if not points:
+        return ""
+    items = []
+    for p in points:
+        p = str(p or "").strip()
+        if not p:
+            continue
+        html = _attach_citations(_sanitize(md_lib.markdown(p)), max_ref=max_ref)
+        items.append(f"<li>{html}</li>")
+    if not items:
+        return ""
+    return '<ul class="key-points">' + "".join(items) + "</ul>"
+
+
 def render(report: dict) -> str:
     meta = report.get("meta", {})
     summary = report.get("summary", "")
@@ -108,12 +124,16 @@ def render(report: dict) -> str:
             except Exception as e:  # noqa
                 chart_html = f'<div class="chart-error">图表渲染失败: {e}</div>'
 
+        # 可视化优先：导语 → 图 → 要点
+        kp_html = _render_key_points(sec.get("key_points"), max_ref)
+
         section_html.append(f"""
 <section class="section">
   <div class="section-num">{i:02d}</div>
   <h2 class="section-title">{_e(title)}</h2>
   <div class="section-content">{_md(content_md, max_ref)}</div>
   {f'<div class="chart-wrap">{chart_html}</div>' if chart_html else ''}
+  {kp_html}
 </section>
 """)
 
