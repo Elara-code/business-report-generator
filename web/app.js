@@ -13,6 +13,9 @@ const STATUS_LABEL = {
   inference:  ['推断',   'warn'],
 };
 const PHASES = ['parse', 'search', 'filter', 'extract', 'verify', 'draft', 'render'];
+// 来源权威度中文标签
+const SRC_TYPE_LABEL = { official: '官方', report: '行业报告', financial: '财报', news: '新闻', media: '自媒体', other: '其他' };
+const srcTypeLabel = (t) => SRC_TYPE_LABEL[t] || t || '';
 
 let currentReport = null; // { title, evidence, files, preview, confidence, dir }
 let running = false;
@@ -466,7 +469,7 @@ function renderSourceBox(ev) {
     }).join('');
     return `<div class="source">
       <div class="row"><b>${escapeHtml(s.title)}</b><span class="tag ${verdict[1]}">${verdict[0]}</span></div>
-      <small>${escapeHtml(s.domain || '')} · ${escapeHtml(s.published_at || '')} · ${escapeHtml(s.source_type || '')}</small>
+      <small>${escapeHtml(s.domain || '')} · ${escapeHtml(s.published_at || '')} · <span class="src-type">${escapeHtml(srcTypeLabel(s.source_type))}</span></small>
       ${factHtml}
     </div>`;
   }).join('');
@@ -509,7 +512,7 @@ function renderSources(ev) {
       : fs.length && fs.every((f) => f.status === 'verified') ? ['已核实', 'ok'] : ['待确认', 'warn'];
     const chips = fs.slice(0, 5).map((f) => `<span class="fact-chip">${escapeHtml((f.category || '事实'))}</span>`).join('');
     const url = s.url ? `<small>${escapeHtml(s.url)}</small>` : '';
-    return `<div class="src-card"><div class="nm"><b>${escapeHtml(s.title)}</b><small>${escapeHtml(s.domain || '')} · ${escapeHtml(s.published_at || '')} · ${escapeHtml(s.source_type || '')}</small>${url}<div class="facts">${chips}</div></div><span class="verdict ${verdict[1]}">${verdict[0]}</span></div>`;
+    return `<div class="src-card"><div class="nm"><b>${escapeHtml(s.title)}</b><small>${escapeHtml(s.domain || '')} · ${escapeHtml(s.published_at || '')} · <span class="src-type">${escapeHtml(srcTypeLabel(s.source_type))}</span></small>${url}<div class="facts">${chips}</div></div><span class="verdict ${verdict[1]}">${verdict[0]}</span></div>`;
   }).join('');
 }
 

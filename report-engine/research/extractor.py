@@ -43,8 +43,9 @@ _EXTRACT_SYSTEM = """你是严谨的行业研究助手。你的任务是从给�
 规则：
 1. 只抽取来源内容中明确出现的事实，绝不编造；
 2. 每条事实必须标注它来自哪些来源编号（数字，对应 sources 列表序号）；
-3. 事实类别从给定类别中选择；
-4. 只输出 JSON 数组，不要任何其他文字。
+3. 同一事实（相同数字或相同论断）若出现在多个来源中，必须合并为一条，source_ids 列出所有出现该事实的来源编号——这是"多源已核实"的基础；
+4. 事实类别从给定类别中选择；
+5. 只输出 JSON 数组，不要任何其他文字。
 输出格式：[{"claim": "事实描述（含具体数字）", "category": "类别", "source_ids": [1,2], "note": "补充说明"}]
 """
 
@@ -60,6 +61,8 @@ def _llm_extract(llm: LLMCallable, plan: ResearchPlan, sources: list[ResearchSou
         f"可用的事实类别：{cats}\n"
         f"来源列表：\n" + "\n".join(src_lines) +
         "\n\n请抽取 8-15 条关键事实，输出 JSON 数组。"
+        "\n再次强调：每条事实的 source_ids 必须是非空数组，至少填 1 个最相关的来源编号；"
+        "同一事实出现在多个来源时填全部编号。"
     )
     raw = llm(_EXTRACT_SYSTEM, user, json_mode=True)
     # 解析
@@ -67,6 +70,31 @@ def _llm_extract(llm: LLMCallable, plan: ResearchPlan, sources: list[ResearchSou
     m = re.search(r"\[[\s\S]*\]", text)
     data = json.loads(m.group(0)) if m else json.loads(text)
     return data if isinstance(data, list) else []
+
+
+def _guess_source_ids(claim: str, sources: list[ResearchSource]) -> list[int]:
+    """LLM 漏填 source_ids 时的兜底：用事实中的数字 / 文本 n-gram 与来源匹配，猜最相关来源。
+
+    保守策略：优先数字匹配（claim 中 ≥3 位的大数字出现在来源摘要/标题），
+    其次文本 4-gram 匹配（与来源文本交集 ≥2 个短语）。仅用于补全证据，不伪造来源内容。
+    """
+    claim_digits = [d for d in re.findall(r"\d{3,}(?:\.\d+)?", claim or "") if float(d) >= 100]
+    hits: list[int] = []
+
+    def _grams(s: str) -> set[str]:
+        s = re.sub(r"\s+", "", s)
+        return {s[i:i + 4] for i in range(len(s) - 3)}
+
+    cg = _grams(claim or "")
+    for i, s in enumerate(sources, 1):
+        text = ((s.snippet or "") + " " + (s.title or ""))
+        if claim_digits:
+            if any(d in text for d in claim_digits):
+                hits.append(i)
+        else:
+            if len(cg & _grams(text)) >= 2:
+                hits.append(i)
+    return hits[:3]
 
 
 # ---------------------------------------------------------------------------
@@ -120,12 +148,15 @@ def extract_facts(plan: ResearchPlan, sources: list[ResearchSource],
                 claim = str(item.get("claim", "")).strip()
                 if not claim:
                     continue
-                for n in item.get("source_ids", []):
-                    if isinstance(n, int):
-                        _add_or_merge(facts, claim,
-                                      str(item.get("category", "") or _guess_category(claim, plan.report_type)),
-                                      f"s{n}", "unverified",
-                                      str(item.get("note", "") or ""))
+                sids = [n for n in item.get("source_ids", []) if isinstance(n, int)]
+                if not sids:
+                    # LLM 漏填 source_ids：用数字/实体词与来源摘要匹配兜底补全
+                    sids = _guess_source_ids(claim, sources)
+                for n in sids:
+                    _add_or_merge(facts, claim,
+                                  str(item.get("category", "") or _guess_category(claim, plan.report_type)),
+                                  f"s{n}", "unverified",
+                                  str(item.get("note", "") or ""))
         except Exception:
             pass  # 抽取失败不阻塞，进入兜底
 

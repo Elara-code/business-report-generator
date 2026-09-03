@@ -14,10 +14,23 @@ from .models import Fact, ResearchSource
 
 
 def verify_facts(facts: list[Fact], sources: list[ResearchSource]) -> list[Fact]:
-    """就地更新每个 Fact 的 status，返回原列表。"""
-    src_ids = {getattr(s, "id", None) or f"s{i}" for i, s in enumerate(sources, 1)}
+    """就地更新每个 Fact 的 status，返回原列表。
 
-    # 1) 多源判定
+    核实模型（专业精准）：
+    - 先做「数值级对齐合并」：同一类别聚合指标、数值相交的不同表述 → 合并来源证据，
+      弥补 LLM 抽取时表述差异导致的多源事实合并不上（根因修复）；
+    - ≥2 个独立来源 → verified（多源交叉）；
+    - 恰 1 个来源且权威度 ≥ 0.75（官方数据 / 公司财报 / 权威行业报告）→ verified（高权威单源）；
+    - 恰 1 个低权威来源 → unverified；无来源 → estimate。
+    """
+    src_ids = {getattr(s, "id", None) or f"s{i}" for i, s in enumerate(sources, 1)}
+    quality = {getattr(s, "id", None) or f"s{i}": getattr(s, "quality_score", 0.5)
+               for i, s in enumerate(sources, 1)}
+
+    # 0) 数值级对齐合并（确定性兜底，弥补抽取阶段跨来源表述差异）
+    _merge_same_numeric(facts)
+
+    # 1) 多源 + 权威度加权判定
     for f in facts:
         ev = [e for e in f.evidence if e in src_ids]
         f.evidence = ev
@@ -25,7 +38,13 @@ def verify_facts(facts: list[Fact], sources: list[ResearchSource]) -> list[Fact]
         if n >= 2:
             f.status = "verified"
         elif n == 1:
-            f.status = "unverified"
+            q = quality.get(ev[0], 0.5)
+            if q >= 0.75:
+                f.status = "verified"  # 高权威单源（官方/财报/权威报告）
+                if "来源" not in (f.note or ""):
+                    f.note = (f.note + "；单一权威来源").strip("；")
+            else:
+                f.status = "unverified"
         else:
             f.status = "estimate"
             f.note = (f.note + "；无直接来源，属估算").strip("；")
@@ -33,6 +52,51 @@ def verify_facts(facts: list[Fact], sources: list[ResearchSource]) -> list[Fact]
     # 2) 数值冲突检测（同类别出现不同数字）
     _mark_conflicts(facts)
     return facts
+
+
+_MERGE_CATEGORIES = {"市场规模", "营收", "收入", "估值", "销售额", "融资", "GMV", "增速", "份额", "规模"}
+
+
+def _is_numeric_category(category: str) -> bool:
+    """该类别是否属于"数值型聚合指标"（同类别同数值可判定为同一事实）。"""
+    return any(c in (category or "") for c in _MERGE_CATEGORIES)
+
+
+def _merge_same_numeric(facts: list[Fact]) -> None:
+    """数值级对齐合并：同类别、数值型聚合指标、绝对数值集合相交 → 合并来源证据。
+
+    背景：不同来源对同一事实的表述几乎必然不同（"市场规模达 7000 亿美元" vs
+    "现制咖啡市场约 7000 亿"），LLM 抽取时难以保证按 claim 合并；这里在验证阶段
+    用「数值型类别 + 数值相交」做确定性对齐，使同一事实获得多来源支持 → 判为已核实。
+    仅合并 evidence，不改动 claim / note，避免信息丢失。
+    """
+    by_cat: dict[str, list[Fact]] = defaultdict(list)
+    for f in facts:
+        if f.category:
+            by_cat[f.category].append(f)
+
+    for group in by_cat.values():
+        if len(group) < 2:
+            continue
+        for i in range(len(group)):
+            for j in range(i + 1, len(group)):
+                a, b = group[i], group[j]
+                if not (_is_numeric_category(a.category) and _is_numeric_category(b.category)):
+                    continue
+                if not (_is_aggregate_metric(a.claim) or _is_aggregate_metric(b.claim)):
+                    continue  # claim 上无聚合指标线索则保守不合并（防门店数/员工数误并）
+                if a.claim == b.claim:
+                    continue  # 字符串已相同，无需数值对齐
+                na = set(round(x) for x in _big_numbers(a.claim))
+                nb = set(round(x) for x in _big_numbers(b.claim))
+                if na and nb and not na.isdisjoint(nb):
+                    # 数值相交 → 视为同一事实的不同表述，互相补全来源
+                    for src in list(a.evidence):
+                        if src not in b.evidence:
+                            b.evidence.append(src)
+                    for src in list(b.evidence):
+                        if src not in a.evidence:
+                            a.evidence.append(src)
 
 
 def _big_numbers(claim: str) -> list[float]:

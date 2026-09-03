@@ -152,23 +152,44 @@ _TYPE_WEIGHT = {
     "other": 0.4,
 }
 
-# 按域名关键词提升权威度
+# 按域名关键词提升权威度（覆盖政府/权威研究机构/主流财经与新闻媒体）
 _AUTHORITY_HINTS = [
-    ("gov.cn", "official"),
-    ("stats.gov.cn", "official"),
-    ("ccfa", "report"),
-    ("iresearch", "report"),
-    ("report", "report"),
-    ("finance", "financial"),
-    ("annualreport", "financial"),
-    ("cfo", "financial"),
-    ("news", "news"),
-    ("caixin", "news"),
-    ("36kr", "news"),
-    ("mp.weixin", "media"),
-    ("zhihu", "media"),
-    ("xiaohongshu", "media"),
+    # 政府 / 官方数据
+    ("stats.gov.cn", "official"), ("gov.cn", "official"), ("miit.gov.cn", "official"),
+    ("mofcom.gov.cn", "official"), ("ndrc.gov.cn", "official"), ("samr.gov.cn", "official"),
+    ("mca.gov.cn", "official"), ("customs.gov.cn", "official"),
+    # 权威研究机构 / 行业报告 / 咨询
+    ("ccfa", "report"), ("iresearch", "report"), ("questmobile", "report"),
+    ("caict.ac.cn", "report"), ("askci", "report"), ("chinabaogao", "report"),
+    ("iiMedia", "report"), ("deloitte", "report"), ("pwc", "report"), ("kpmg", "report"),
+    ("mckinsey", "report"), ("bain", "report"), ("bcg", "report"), ("euromonitor", "report"),
+    ("statista", "report"), ("gartner", "report"), ("idc.com", "report"),
+    ("counterpoint", "report"), ("canalys", "report"), ("mintel", "report"),
+    ("iimedia", "report"), ("report", "report"),
+    # 财经 / 财报 / 交易所
+    ("eastmoney", "financial"), ("finance", "financial"), ("annualreport", "financial"),
+    ("cfo", "financial"), ("cls.cn", "financial"), ("yicai", "financial"),
+    ("caixin", "financial"), ("wallstreetcn", "financial"), ("xueqiu", "financial"),
+    ("10jqka", "financial"), ("stockstar", "financial"), ("stcn.com", "financial"),
+    # 主流新闻媒体
+    ("people.com", "news"), ("xinhuanet", "news"), ("chinadaily", "news"),
+    ("cctv.com", "news"), ("thepaper", "news"), ("ifeng", "news"),
+    ("chinanews", "news"), ("news", "news"), ("sina", "news"),
+    ("163.com", "news"), ("qq.com", "news"), ("36kr", "news"), ("jiemian", "news"),
+    ("21jingji", "news"), ("nbd.com", "news"), ("zaker", "news"),
+    # 自媒体 / 社区（低权威）
+    ("mp.weixin", "media"), ("zhihu", "media"), ("xiaohongshu", "media"),
+    ("toutiao.com", "media"), ("sohu.com", "media"), ("baike.baidu.com", "media"),
 ]
+
+# 明显无关 / 广告 / 工具类域名黑名单（DDG 常混入，直接剔除）
+_BLOCKED_DOMAINS = {
+    "wolframalpha.com", "acura.com", "galvion.com", "amazon.com", "amazon.cn",
+    "ebay.com", "aliexpress.com", "pinterest.com", "instagram.com", "facebook.com",
+    "youtube.com", "tiktok.com", "wikipedia.org", "britannica.com", "sparknotes.com",
+    "hubspot.com", "salesforce.com", "microsoft.com", "apple.com", "opensubtitles.org",
+    "linkedin.com", "lexology.com", "slideshare.net", "scribd.com", "issuu.com",
+}
 
 
 def _infer_source_type(url: str, hint: str | None = None) -> str:
@@ -200,6 +221,9 @@ def filter_dedup(results: list[SearchResult], max_sources: int = 12,
         url = (r.url or "").strip()
         if not url:
             continue
+        host = (urlparse(url).netloc or "").lower()
+        if any(b in host for b in _BLOCKED_DOMAINS):
+            continue  # 剔除无关/广告/工具类域名
         norm = re.sub(r"[?#].*$", "", url).rstrip("/").lower()
         if norm in seen:
             continue

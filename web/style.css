@@ -123,6 +123,7 @@ a{color:var(--green-deep);text-decoration:none}
 .source .row{display:flex;align-items:center;gap:6px}
 .source b{display:block;color:#54635a;font-size:11px}
 .source small{display:block;margin-top:2px;color:#8b96a7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px}
+.src-type{color:#2f9e62;font-weight:600}
 .tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;flex:none}
 .tag.ok{color:#188b60;background:#dff5e9}
 .tag.warn{color:#a16207;background:#fdf0d8}
