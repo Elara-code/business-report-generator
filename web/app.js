@@ -24,6 +24,10 @@ function escapeHtml(s) {
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
 }
+// 报告资源 URL：路径可能含中文项目名，必须编码（iframe src 未编码中文会 404）
+function assetUrl(p) {
+  return '/' + encodeURI(String(p ?? ''));
+}
 
 // ---------------- 顶栏 / 历史（按项目分组） ----------------
 function renderHistoryList(data) {
@@ -92,7 +96,7 @@ function loadHistory() {
     .catch(() => { $('#historyList').innerHTML = '<div class="chat-item"><span class="t" style="color:var(--navmuted)">历史加载失败</span></div>'; });
 }
 $('#historyBtn').onclick = () => {
-  if (currentReport && currentReport.preview) window.open('/' + currentReport.preview, '_blank');
+  if (currentReport && currentReport.preview) window.open(assetUrl(currentReport.preview), '_blank');
 };
 
 function deleteHistory(dir, title) {
@@ -144,7 +148,7 @@ function openHistoryReport(btn) {
   $$('#historyList .chat-item').forEach((x) => x.classList.remove('active'));
   btn.classList.add('active');
   currentReport = { title, preview: html, files: { html }, evidence: null, dir };
-  $('#reportFrame').src = '/' + html;
+  $('#reportFrame').src = assetUrl(html);
   $('#reportFrame').classList.remove('hidden');
   $('#reportEmpty').classList.add('hidden');
   $('#filePill').textContent = html.split('/').pop();
@@ -393,7 +397,7 @@ async function onComplete(final, type) {
   // 报告预览 iframe
   const preview = final.preview || (final.files && (final.files.html || final.files.md));
   if (preview) {
-    $('#reportFrame').src = '/' + preview;
+    $('#reportFrame').src = assetUrl(preview);
     $('#reportFrame').classList.remove('hidden');
     $('#reportEmpty').classList.add('hidden');
     $('#filePill').textContent = preview.split('/').pop();
@@ -520,10 +524,10 @@ $('#newChat').onclick = () => {
   $('#prompt').focus();
 };
 $('#downloadBtn').onclick = () => {
-  if (currentReport && currentReport.preview) window.open('/' + currentReport.preview, '_blank');
+  if (currentReport && currentReport.preview) window.open(assetUrl(currentReport.preview), '_blank');
 };
 $('#newWinBtn').onclick = () => {
-  if (currentReport && currentReport.preview) window.open('/' + currentReport.preview, '_blank');
+  if (currentReport && currentReport.preview) window.open(assetUrl(currentReport.preview), '_blank');
 };
 
 // ---------------- 三栏列宽拖拽 ----------------
