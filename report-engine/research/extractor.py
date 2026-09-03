@@ -65,11 +65,60 @@ def _llm_extract(llm: LLMCallable, plan: ResearchPlan, sources: list[ResearchSou
         "同一事实出现在多个来源时填全部编号。"
     )
     raw = llm(_EXTRACT_SYSTEM, user, json_mode=True)
-    # 解析
-    text = raw.strip()
+    return _parse_items(raw)
+
+
+def _parse_items(raw: str) -> list[dict]:
+    """容错解析 LLM 输出为事实数组（处理 ```json 包裹 / 前后杂文 / 截断）。"""
+    text = (raw or "").strip()
     m = re.search(r"\[[\s\S]*\]", text)
-    data = json.loads(m.group(0)) if m else json.loads(text)
-    return data if isinstance(data, list) else []
+    try:
+        data = json.loads(m.group(0)) if m else json.loads(text)
+    except Exception:
+        return []
+    if not isinstance(data, list):
+        return []
+    items = []
+    for it in data:
+        if isinstance(it, dict) and str(it.get("claim", "")).strip():
+            items.append(it)
+    return items
+
+
+def _extract_valid(items: list[dict]) -> bool:
+    """结构化校验：非空、条数达标、多数带来源编号。"""
+    if not items or len(items) < 3:
+        return False
+    with_src = sum(1 for it in items if it.get("source_ids"))
+    return with_src >= max(1, len(items) // 2)
+
+
+def _extract_with_retry(llm: LLMCallable, plan: ResearchPlan,
+                        sources: list[ResearchSource]) -> list[dict]:
+    """抽取 + 结构化校验 + 一次修正重试（应对 LLM 偶发输出劣化）。"""
+    items = _llm_extract(llm, plan, sources)
+    if _extract_valid(items):
+        return items
+    # 修正重试：更强调 JSON 结构与 source_ids 约束
+    try:
+        cats = "、".join(CATEGORIES.get(plan.report_type, CATEGORIES["industry"]))
+        src_lines = []
+        for i, s in enumerate(sources, 1):
+            sn = (s.snippet or "")[:200].replace("\n", " ")
+            src_lines.append(f"[{i}] {s.title} | {sn}")
+        fix_system = _EXTRACT_SYSTEM + (
+            "\n注意：上次输出不合格。必须输出合法的 JSON 数组，元素为对象，"
+            "每条必须有 claim、category、source_ids（非空数字数组）。"
+        )
+        raw2 = llm(fix_system,
+                   f"报告主题：{plan.subject}（{plan.report_type}）\n可用类别：{cats}\n"
+                   f"来源列表：\n" + "\n".join(src_lines) +
+                   "\n\n请重新抽取 8-15 条关键事实，只输出 JSON 数组。",
+                   json_mode=True)
+        retry = _parse_items(raw2)
+        return retry if _extract_valid(retry) else items
+    except Exception:
+        return items
 
 
 def _guess_source_ids(claim: str, sources: list[ResearchSource]) -> list[int]:
@@ -144,7 +193,7 @@ def extract_facts(plan: ResearchPlan, sources: list[ResearchSource],
     # 2) LLM 抽取（真实模式，且语料直供不足时）
     if llm is not None and len(facts) < 4:
         try:
-            for item in _llm_extract(llm, plan, sources):
+            for item in _extract_with_retry(llm, plan, sources):
                 claim = str(item.get("claim", "")).strip()
                 if not claim:
                     continue

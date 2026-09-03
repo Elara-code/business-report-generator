@@ -165,12 +165,13 @@ _AUTHORITY_HINTS = [
     ("mckinsey", "report"), ("bain", "report"), ("bcg", "report"), ("euromonitor", "report"),
     ("statista", "report"), ("gartner", "report"), ("idc.com", "report"),
     ("counterpoint", "report"), ("canalys", "report"), ("mintel", "report"),
-    ("iimedia", "report"), ("report", "report"),
+    ("iimedia", "report"), ("vzkoo", "report"), ("report", "report"),
     # 财经 / 财报 / 交易所
     ("eastmoney", "financial"), ("finance", "financial"), ("annualreport", "financial"),
     ("cfo", "financial"), ("cls.cn", "financial"), ("yicai", "financial"),
     ("caixin", "financial"), ("wallstreetcn", "financial"), ("xueqiu", "financial"),
     ("10jqka", "financial"), ("stockstar", "financial"), ("stcn.com", "financial"),
+    ("luckincoffee", "financial"), ("investor.", "financial"), ("annualreports", "financial"),
     # 主流新闻媒体
     ("people.com", "news"), ("xinhuanet", "news"), ("chinadaily", "news"),
     ("cctv.com", "news"), ("thepaper", "news"), ("ifeng", "news"),
@@ -190,6 +191,29 @@ _BLOCKED_DOMAINS = {
     "hubspot.com", "salesforce.com", "microsoft.com", "apple.com", "opensubtitles.org",
     "linkedin.com", "lexology.com", "slideshare.net", "scribd.com", "issuu.com",
 }
+
+# 按报告类型的"垂直权威源"加权（域名关键词 → quality 加分）。
+# 命中垂直领域的权威站点（行业报告站/财经数据站/官方）额外加分，让检索结果更聚焦专业来源。
+_VERTICAL_BONUS: dict[str, dict[str, float]] = {
+    "industry": {
+        "iresearch": 0.1, "askci": 0.1, "chinabaogao": 0.1, "iimedia": 0.1,
+        "ccfa": 0.1, "qianzhan": 0.1, "guanyan": 0.1, "sinoir": 0.1,
+        "report": 0.05, "baogao": 0.05, "zhiyan": 0.05, "huaon": 0.05,
+        "gov.cn": 0.1, "stats": 0.1, "caict": 0.1,
+    },
+    "product": {
+        "apple.com": 0.08, "google": 0.08, "microsoft": 0.08, "notion": 0.08,
+        "obsidian": 0.08, "official": 0.05, "developer": 0.05, "docs": 0.03,
+        "producthunt": 0.05, "appstore": 0.05,
+    },
+    "competitor": {
+        "comparison": 0.08, "versus": 0.08, "review": 0.05, "评测": 0.05,
+        "zol.com.cn": 0.05, "producthunt": 0.05, "community": 0.03,
+    },
+}
+
+# 同一域名最多保留的来源数（防止单一权威站霸占名额，保证来源多样性）
+_MAX_PER_DOMAIN = 2
 
 
 def _infer_source_type(url: str, hint: str | None = None) -> str:
@@ -212,9 +236,11 @@ def _quality(url: str, source_type: str, has_snippet: bool, has_date: bool) -> f
 
 
 def filter_dedup(results: list[SearchResult], max_sources: int = 12,
-                 source_type_hint: dict[str, str] | None = None) -> list[ResearchSource]:
-    """去重（按 URL 归一化）、排序（权威度 + 时效）、截断。"""
+                 source_type_hint: dict[str, str] | None = None,
+                 vertical_bonus: dict[str, float] | None = None) -> list[ResearchSource]:
+    """去重（按 URL 归一化）、垂直源加权、排序（权威度 + 时效）、截断。"""
     hint_map = source_type_hint or {}
+    bonus_map = vertical_bonus or {}
     seen: set[str] = set()
     out: list[ResearchSource] = []
     for i, r in enumerate(results, 1):
@@ -231,6 +257,12 @@ def filter_dedup(results: list[SearchResult], max_sources: int = 12,
         stype = _infer_source_type(url, hint_map.get(url))
         has_snippet = bool(r.snippet.strip())
         has_date = bool(r.published_at.strip())
+        quality = _quality(url, stype, has_snippet, has_date)
+        # 垂直权威源加权：域名命中报告类型对应的权威源则加分
+        for kw, b in bonus_map.items():
+            if kw in host:
+                quality = min(quality + b, 1.0)
+                break
         src = ResearchSource(
             id=f"s{i}",
             title=r.title,
@@ -240,14 +272,24 @@ def filter_dedup(results: list[SearchResult], max_sources: int = 12,
             published_at=r.published_at,
             source_type=stype,  # type: ignore[arg-type]
             accessed_at=now_cn(),
-            quality_score=_quality(url, stype, has_snippet, has_date),
+            quality_score=round(quality, 2),
             seed_facts=r.facts or [],
         )
         out.append(src)
 
     # 按权威度 + 有无摘要 排序，保留顺序稳定
     out.sort(key=lambda s: s.quality_score, reverse=True)
-    return out[:max_sources]
+
+    # 域名多样性：同一域名最多保留 _MAX_PER_DOMAIN 个
+    final: list[ResearchSource] = []
+    domain_count: dict[str, int] = {}
+    for s in out:
+        d = (s.domain or "").lower()
+        if domain_count.get(d, 0) >= _MAX_PER_DOMAIN:
+            continue
+        domain_count[d] = domain_count.get(d, 0) + 1
+        final.append(s)
+    return final[:max_sources]
 
 
 # ---------------------------------------------------------------------------

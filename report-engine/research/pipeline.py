@@ -10,7 +10,7 @@ from typing import Callable
 
 from .models import (EvidenceChain, ResearchLog, ResearchPlan, ResearchSource,
                      ResearchStep, now_cn)
-from .searcher import Searcher, filter_dedup
+from .searcher import Searcher, _VERTICAL_BONUS, filter_dedup
 from .extractor import extract_facts
 from .verifier import verify_facts
 
@@ -70,7 +70,8 @@ def run_research(plan: ResearchPlan, searcher: Searcher,
     # 3) 来源筛选与去重
     emit("filter", "去重并按权威度排序…")
     _set_step(log, 2, "running", "筛选去重中")
-    sources = filter_dedup(raw_results, max_sources=max_sources)
+    vertical = _VERTICAL_BONUS.get(plan.report_type, {})
+    sources = filter_dedup(raw_results, max_sources=max_sources, vertical_bonus=vertical)
     emit("filter", f"筛选保留 {len(sources)} 个有效来源")
     _set_step(log, 2, "done", f"保留 {len(sources)} 个来源")
 

@@ -53,35 +53,36 @@ def build_plan(report_type: str, subject: str, *,
 
 
 def _build_queries(report_type: str, subject: str, market: str) -> list[str]:
-    """为报告类型生成多路检索词。"""
+    """为报告类型生成多路检索词（垂直化：注入权威词/年份/类型词，让来源更聚焦）。"""
     area = "全国" if market in ("全国", "中国", "中国大陆", "") else market
+    year = str(int(now_cn()[:4]))  # 当前年份，提升时效性
     if report_type == "industry":
         return [
-            f"{subject} 行业 市场规模 {area}",
-            f"{subject} 行业报告 趋势",
-            f"{subject} 产业链 价值链",
-            f"{subject} 竞争格局 头部企业",
-            f"{subject} 政策 风险 机会",
+            f"{subject} 行业 市场规模 {area} {year}",
+            f"{subject} 行业报告 白皮书 趋势",
+            f"{subject} 产业链 价值链 上下游",
+            f"{subject} 竞争格局 头部企业 市场份额",
+            f"{subject} 政策 风险 机会 展望",
         ]
     if report_type == "product":
         return [
-            f"{subject} 产品 介绍 核心功能",
-            f"{subject} 定价 商业模式",
-            f"{subject} 用户 评价 竞品",
-            f"{subject} 增长 融资 最新动态",
+            f"{subject} 产品 介绍 核心功能 评测",
+            f"{subject} 定价 商业模式 盈利",
+            f"{subject} 用户 评价 口碑 优缺点",
+            f"{subject} 增长 融资 最新动态 {year}",
         ]
     # competitor
     names = _split_competitors(subject)
     if len(names) >= 2:
         a, b = names[0], names[1]
         return [
-            f"{a} vs {b} 对比 评测",
-            f"{a} {b} 区别 差异",
-            f"{a} 定价 功能 {b}",
+            f"{a} vs {b} 对比 评测 差异",
+            f"{a} {b} 区别 功能 定价 对比",
+            f"{a} {b} 优缺点 用户评价 选哪个",
         ]
     return [
         f"{subject} 竞品 对比 评测",
-        f"{subject} 竞品 分析",
+        f"{subject} 竞品 分析 差异化",
     ]
 
 

@@ -19,6 +19,9 @@ const srcTypeLabel = (t) => SRC_TYPE_LABEL[t] || t || '';
 
 let currentReport = null; // { title, evidence, files, preview, confidence, dir }
 let running = false;
+let cancelled = false;
+let activeClientId = null;
+let activeReader = null;
 let currentProject = ''; // '' = 默认分组；否则为项目名
 const DEFAULT_PROJECT = '默认';
 
@@ -283,6 +286,11 @@ async function doSubmit() {
   $('#prompt').value = '';
   currentReport = null;
 
+  // 取消支持：生成一个 client_id，SSE 期间可调 /api/cancel 中断
+  const clientId = (crypto.randomUUID && crypto.randomUUID()) || ('g' + Date.now() + Math.floor(Math.random() * 1e6));
+  activeClientId = clientId;
+  $('#cancelBtn').style.display = 'inline-flex';
+
   const projTxt = currentProject ? ` · 项目：${currentProject}` : '';
   addUserBubble(subject, `已按参数：${TYPE_LABEL[type]} · ${market} / ${time_range}（北京时间） / ${audience} · 输出 ${format.toUpperCase()} · 真实模型${projTxt}`);
   addAgentMessage('收到。我会先解析分析意图，再搜索公开网络信息，抽取关键事实并进行多源交叉验证，最后只基于已核实的证据生成带来源引用的报告。未经确认的内容会单独标注。');
@@ -301,13 +309,14 @@ async function doSubmit() {
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, subject, ai: 'openai', preset: null, formats, market, time_range, audience, project: currentProject }),
+      body: JSON.stringify({ type, subject, ai: 'openai', preset: null, formats, market, time_range, audience, project: currentProject, client_id: clientId }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error || ('HTTP ' + res.status));
     }
     const reader = res.body.getReader();
+    activeReader = reader;
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
     let final = null;
@@ -328,6 +337,11 @@ async function doSubmit() {
           setRunBadge('失败', false);
           stepState('step-parse', 'error');
           addAgentMessage('生成失败：' + (evt.message || evt.error || '未知错误'));
+          break;
+        }
+        if (phase === 'cancelled') {
+          setRunBadge('已取消', false);
+          addAgentMessage('⏹ 已停止本次生成。');
           break;
         }
         if (phase === 'complete') { final = evt; break; }
@@ -381,12 +395,40 @@ async function doSubmit() {
     if (!final.ok) throw new Error(final.error || '生成失败');
     onComplete(final, type);
   } catch (e) {
-    setRunBadge('失败', false);
-    addAgentMessage('出错：' + e.message);
+    if (cancelled) {
+      setRunBadge('已取消', false);
+      addAgentMessage('⏹ 已停止本次生成。');
+    } else {
+      setRunBadge('失败', false);
+      addAgentMessage('出错：' + e.message);
+    }
   } finally {
     clearInterval(timer);
     running = false;
+    cancelled = false;
+    activeClientId = null;
+    activeReader = null;
     $('#sendBtn').disabled = false;
+    $('#cancelBtn').style.display = 'none';
+  }
+}
+
+// ---------------- 取消 ----------------
+async function doCancel() {
+  cancelled = true;
+  try {
+    const cid = activeClientId;
+    if (cid) {
+      fetch('/api/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: cid }),
+      }).catch(() => {});
+    }
+  } catch (e) { /* ignore */ }
+  // 主动断开 SSE，前端立即恢复（后端会检测到断连/取消）
+  if (activeReader) {
+    try { activeReader.cancel(); } catch (e) { /* ignore */ }
   }
 }
 
@@ -544,6 +586,7 @@ $$('.view-tab').forEach((t) => t.addEventListener('click', () => {
 }));
 
 $('#sendBtn').addEventListener('click', doSubmit);
+$('#cancelBtn').addEventListener('click', doCancel);
 $('#prompt').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSubmit(); }
 });

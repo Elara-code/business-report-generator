@@ -38,6 +38,27 @@ if HERE not in sys.path:
 import schemas  # noqa: E402
 from llm import extract_json, get_provider  # noqa: E402
 from render import html_renderer, md_renderer, pdf_renderer  # noqa: E402
+
+
+class GenerationCancelled(Exception):
+    """用户主动取消生成。"""
+
+
+# 取消注册表：client_id -> threading.Event。生成开始注册、结束清理。
+_CANCEL_EVENTS: dict[str, threading.Event] = {}
+_CANCEL_LOCK = threading.Lock()
+
+
+def _register_cancel(client_id: str) -> threading.Event:
+    ev = threading.Event()
+    with _CANCEL_LOCK:
+        _CANCEL_EVENTS[client_id] = ev
+    return ev
+
+
+def _unregister_cancel(client_id: str) -> None:
+    with _CANCEL_LOCK:
+        _CANCEL_EVENTS.pop(client_id, None)
 from report_model import Report, coerce_report  # noqa: E402
 from research import build_plan, run_research, get_searcher, draft_report, attach_evidence  # noqa: E402
 
@@ -165,7 +186,7 @@ def do_generate(report_type: str, subject: str, ai: str, preset: str | None,
                 formats: list[str], out_root: str, from_json: str | None,
                 on_progress=None, market: str | None = None,
                 time_range: str | None = None, audience: str | None = None,
-                on_stream=None) -> tuple[Report, dict[str, str], str]:
+                on_stream=None, cancel_event: threading.Event | None = None) -> tuple[Report, dict[str, str], str]:
     """统一处理 CLI 与 HTTP 入口。返回 (Report, outputs, target_dir)。
 
     v1（研究流水线）：
@@ -185,7 +206,12 @@ def do_generate(report_type: str, subject: str, ai: str, preset: str | None,
     if report_type not in schemas.SUPPORTED_TYPES:
         raise ValueError(f"type 必须是 {schemas.SUPPORTED_TYPES}，收到: {report_type}")
 
+    def _check_cancel() -> None:
+        if cancel_event is not None and cancel_event.is_set():
+            raise GenerationCancelled("生成已取消")
+
     def _progress(phase: str, msg: str):
+        _check_cancel()
         print(f"[{phase}] {msg}")
         if on_progress:
             try:
@@ -194,6 +220,7 @@ def do_generate(report_type: str, subject: str, ai: str, preset: str | None,
                 pass
 
     def _stream(kind: str, payload: dict):
+        _check_cancel()
         if on_stream:
             try:
                 on_stream(kind, payload)
@@ -347,6 +374,8 @@ def cmd_serve(args) -> int:
                 return self._handle_delete()
             if self.path == "/api/projects":
                 return self._handle_create_project()
+            if self.path == "/api/cancel":
+                return self._handle_cancel()
             return self._json({"error": "Not Found"}, 404)
 
         # ----- /api/generate（SSE 流式） -----
@@ -374,6 +403,8 @@ def cmd_serve(args) -> int:
             time_range = req.get("time_range")
             audience = req.get("audience")
             project = self._safe_project(req.get("project"))
+            client_id = str(req.get("client_id") or "") or None
+            cancel_ev = _register_cancel(client_id) if client_id else None
 
             # SSE 头
             self.send_response(200)
@@ -415,6 +446,7 @@ def cmd_serve(args) -> int:
                     market=market,
                     time_range=time_range,
                     audience=audience,
+                    cancel_event=cancel_ev,
                 )
                 # 证据链摘要（供前端"来源面板 / 冲突提示"使用）
                 evidence = report.evidence or {}
@@ -435,8 +467,13 @@ def cmd_serve(args) -> int:
                      files={k: os.path.relpath(v, workspace_root) for k, v in outputs.items()},
                      preview=next((f"reports/{os.path.basename(target)}/report.html"
                                     for k in ("html",) if k in outputs), None))
+            except GenerationCancelled:
+                emit("cancelled", "⏹ 生成已取消", done=True, ok=False, error="cancelled")
             except Exception as e:
                 emit("error", f"❌ {e}", done=True, ok=False, error=str(e))
+            finally:
+                if cancel_ev is not None:
+                    _unregister_cancel(client_id)
             # 关键：显式关闭连接。http.server 默认 HTTP/1.1 keep-alive，
             # 若不关闭，浏览器 fetch 流式读取永远等不到 EOF，收不到 complete 终态。
             self.close_connection = True
@@ -541,6 +578,24 @@ def cmd_serve(args) -> int:
                 return self._json({"error": "目标不存在"}, 404)
             shutil.rmtree(target)
             return self._json({"ok": True})
+
+        # ----- /api/cancel（取消指定 client_id 的生成） -----
+        def _handle_cancel(self):
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                body = self.rfile.read(length).decode("utf-8")
+                req = json.loads(body) if body else {}
+            except Exception as e:
+                return self._json({"error": f"无效 JSON: {e}"}, 400)
+            cid = str(req.get("client_id") or "").strip()
+            if not cid:
+                return self._json({"error": "缺少 client_id"}, 400)
+            with _CANCEL_LOCK:
+                ev = _CANCEL_EVENTS.get(cid)
+            if ev is not None:
+                ev.set()
+                return self._json({"ok": True, "cancelled": True})
+            return self._json({"ok": False, "cancelled": False, "reason": "任务不存在或已结束"})
 
         # ----- /api/projects（创建项目 = 在 reports/ 下建目录） -----
         def _handle_create_project(self):
