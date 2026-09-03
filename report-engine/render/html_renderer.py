@@ -128,7 +128,7 @@ def render(report: dict) -> str:
         kp_html = _render_key_points(sec.get("key_points"), max_ref)
 
         section_html.append(f"""
-<section class="section">
+<section class="section" id="sec-{i}">
   <div class="section-num">{i:02d}</div>
   <h2 class="section-title">{_e(title)}</h2>
   <div class="section-content">{_md(content_md, max_ref)}</div>

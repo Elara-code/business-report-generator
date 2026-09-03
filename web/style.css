@@ -167,6 +167,9 @@ textarea{width:100%;height:38px;resize:none;border:0;outline:0;color:#3c4a41;bac
 .send:disabled{background:#a9c9b6;cursor:default}
 .cancel{height:28px;padding:0 10px;border-radius:7px;color:#fff;background:#e0865a;font-size:12px;font-weight:600;align-items:center;display:inline-flex}
 .cancel:hover{background:#cf7346}
+.redo-btn{margin-top:6px;font-size:11px;color:#1f9556;background:#e9f7ef;border:1px solid #bfe6d0;border-radius:6px;padding:2px 8px;cursor:pointer}
+.redo-btn:hover{background:#d3efe0}
+.redo-btn:disabled{opacity:.6;cursor:default}
 /* ---------- 右栏：报告预览 ---------- */
 .right{grid-column:5;grid-row:2;display:flex;flex-direction:column;min-width:0;background:#fff}
 .right-head{height:53px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--line)}

@@ -61,6 +61,7 @@ def _unregister_cancel(client_id: str) -> None:
         _CANCEL_EVENTS.pop(client_id, None)
 from report_model import Report, coerce_report  # noqa: E402
 from research import build_plan, run_research, get_searcher, draft_report, attach_evidence  # noqa: E402
+from research.drafter import _section_schema_hint  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -378,6 +379,8 @@ def cmd_serve(args) -> int:
                 return self._handle_cancel()
             if self.path == "/api/followup":
                 return self._handle_followup()
+            if self.path == "/api/regenerate-section":
+                return self._handle_regenerate_section()
             return self._json({"error": "Not Found"}, 404)
 
         # ----- /api/generate（SSE 流式） -----
@@ -655,6 +658,108 @@ def cmd_serve(args) -> int:
             except Exception as e:
                 return self._json({"error": f"LLM 调用失败: {e}"}, 500)
             return self._json({"ok": True, "answer": (ans or "").strip(), "facts": len(facts), "sources": len(sources)})
+
+        # ----- /api/regenerate-section（基于证据链重写报告单节） -----
+        def _handle_regenerate_section(self):
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                body = self.rfile.read(length).decode("utf-8")
+                req = json.loads(body) if body else {}
+            except Exception as e:
+                return self._json({"error": f"无效 JSON: {e}"}, 400)
+            rel_dir = str(req.get("dir") or "").strip().lstrip("/")
+            try:
+                index = int(req.get("index"))
+            except (TypeError, ValueError):
+                return self._json({"error": "缺少 index"}, 400)
+            if not rel_dir:
+                return self._json({"error": "缺少 dir"}, 400)
+            base = os.path.realpath(reports_dir)
+            target = os.path.realpath(os.path.join(base, rel_dir))
+            if not (target == base or target.startswith(base + os.sep)):
+                return self._json({"error": "非法路径"}, 400)
+            json_path = os.path.join(target, "report.json")
+            if not os.path.exists(json_path):
+                return self._json({"error": "报告不存在"}, 404)
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception as e:
+                return self._json({"error": f"读取报告失败: {e}"}, 500)
+            sections = data.get("sections") or []
+            if not (0 <= index < len(sections)):
+                return self._json({"error": f"index 越界（共 {len(sections)} 节）"}, 400)
+            sec = dict(sections[index])
+            sec_title = sec.get("title") or f"第{index + 1}节"
+
+            ev = data.get("evidence") or {}
+            facts, sources = ev.get("facts") or [], ev.get("sources") or []
+            STATUS_CN = {"verified": "已核实", "unverified": "待确认", "conflicted": "冲突", "estimate": "估算"}
+            fact_lines = []
+            for ft in facts:
+                st = STATUS_CN.get(ft.get("status"), ft.get("status"))
+                refs = ",".join(str(s) for s in (ft.get("evidence") or [])) or "无来源"
+                fact_lines.append(f"- [{st}]（来源 {refs}）{ft.get('claim', '')}")
+            src_lines = []
+            for i, s in enumerate(sources, 1):
+                sn = (s.get("snippet") or "")[:160].replace("\n", " ")
+                src_lines.append(f"[{i}] {s.get('title', '')} | {s.get('domain', '')} | {s.get('source_type', '')} | {sn}")
+            fact_block = "\n".join(fact_lines) or "（无）"
+            src_block = "\n".join(src_lines) or "（无）"
+
+            regen_system = """你是资深商业分析师。基于给定的【事实清单】重写报告的某一节，严格遵守证据纪律：
+1. 只能使用事实清单中的内容；量化数字必须来自事实清单并标注来源编号；
+2. 正文引用格式为 [N]（N 为来源编号），放在论断末尾；
+3. 事实清单中标"估算/待确认/冲突"的内容，要明确写"（估算）""（待确认）""（两种口径）"，不得写成确定结论；
+4. 不得编造未在事实清单中出现的来源或数据；
+5. 只输出该节的 JSON，不要任何多余文字。"""
+            old_kp = "；".join((sec.get("key_points") or [])[:4]) or "（无）"
+            user = (f"报告主题：{data.get('meta', {}).get('title', rel_dir)}\n"
+                    f"报告类型：{data.get('meta', {}).get('type', 'industry')}\n"
+                    f"你正在重写第 {index + 1} 节《{sec_title}》。\n\n"
+                    f"## 事实清单（只允许引用这里的内容）\n{fact_block}"
+                    f"\n\n## 来源清单\n{src_block}"
+                    f"\n\n## 本节原内容（供参考，可保留或改进）\n"
+                    f"原导语：{str(sec.get('content', '') or '')[:120]}\n原要点：{old_kp}"
+                    f"\n\n## 单节输出格式（严格 JSON）\n{_section_schema_hint()}")
+            try:
+                provider = get_provider("openai", timeout=120)
+                ans = provider.complete(regen_system, user, json_mode=True)
+            except Exception as e:
+                return self._json({"error": f"LLM 调用失败: {e}"}, 500)
+            text = (ans or "").strip()
+            m = re.search(r"\{[\s\S]*\}", text)
+            try:
+                new_sec = json.loads(m.group(0)) if m else json.loads(text)
+            except Exception:
+                return self._json({"error": "LLM 输出解析失败，请重试"}, 500)
+            if not isinstance(new_sec, dict):
+                return self._json({"error": "LLM 输出格式错误"}, 500)
+            # 合并回原节：标题保留原标题（重写不改骨架），内容/要点/图表可更新
+            if new_sec.get("content"):
+                sec["content"] = new_sec["content"]
+            if new_sec.get("key_points"):
+                sec["key_points"] = new_sec["key_points"]
+            if isinstance(new_sec.get("chart"), dict):
+                sec["chart"] = new_sec["chart"]
+            sections[index] = sec
+            data["sections"] = sections
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            # 重新渲染 HTML（覆盖 report.html）
+            try:
+                report = coerce_report(data, data.get("meta", {}).get("type", "industry"),
+                                       data.get("meta", {}).get("subject", ""))
+                html = html_renderer.render(report.model_dump())
+                with open(os.path.join(target, "report.html"), "w", encoding="utf-8") as f:
+                    f.write(html)
+                if "md" in os.listdir(target):
+                    md = md_renderer.render(report.model_dump())
+                    with open(os.path.join(target, "report.md"), "w", encoding="utf-8") as f:
+                        f.write(md)
+            except Exception as e:
+                pass  # 渲染失败不阻塞返回，前端可刷新
+            return self._json({"ok": True, "section": sec, "title": sec_title})
 
         # ----- /api/projects（创建项目 = 在 reports/ 下建目录） -----
         def _handle_create_project(self):

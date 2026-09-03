@@ -443,6 +443,69 @@ async function doFollowup(question) {
   }
 }
 
+// ---------------- 单节重生成 ----------------
+function addSectionRedoButtons() {
+  if (!currentReport || !currentReport.dir) return;
+  const box = $('#draftOutline');
+  if (!box) return;
+  box.querySelectorAll('.draft-sec').forEach((node, i) => {
+    if (node.querySelector('.redo-btn')) return;
+    const btn = document.createElement('button');
+    btn.className = 'redo-btn';
+    btn.textContent = '重做此节';
+    btn.dataset.index = i;
+    btn.addEventListener('click', () => redoSection(i, btn));
+    node.appendChild(btn);
+  });
+}
+
+async function redoSection(index, btn) {
+  if (running) return;
+  running = true;
+  btn.disabled = true;
+  btn.textContent = '重写中…';
+  try {
+    const res = await fetch('/api/regenerate-section', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dir: currentReport.dir, index }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data.error || '重写失败');
+    const sec = data.section || {};
+    const node = $('#draft-sec-' + index);
+    if (node) {
+      const kps = (sec.key_points || []).slice(0, 4);
+      const chartType = (sec.chart && sec.chart.type && sec.chart.type !== 'null') ? sec.chart.type : null;
+      let sum = node.querySelector('.draft-sec-sum');
+      if (!sum) {
+        sum = document.createElement('div');
+        sum.className = 'draft-sec-sum';
+        node.appendChild(sum);
+      }
+      sum.innerHTML = `<em>${escapeHtml(sec.content || '').slice(0, 90)}</em>${chartType ? `<span class="draft-chart-tag">配图 · ${chartType}</span>` : ''}`;
+      const oldTips = node.querySelector('.draft-sec-tips');
+      if (oldTips) oldTips.remove();
+      if (kps.length) {
+        node.insertAdjacentHTML('beforeend',
+          `<div class="draft-sec-tips">${kps.map((k) => `<span>${escapeHtml(k)}</span>`).join('')}</div>`);
+      }
+    }
+    addAgentMessage(`已重写第 ${index + 1} 节《${data.title || ''}》，报告已更新，预览已跳转到该节。`);
+    const frame = $('#reportFrame');
+    if (frame) {
+      const base = frame.src.split('#')[0];
+      frame.src = base + '#sec-' + index;
+    }
+  } catch (e) {
+    addAgentMessage('重写失败：' + e.message);
+  } finally {
+    running = false;
+    btn.disabled = false;
+    btn.textContent = '重做此节';
+  }
+}
+
 // ---------------- 取消 ----------------
 async function doCancel() {
   cancelled = true;
@@ -475,6 +538,7 @@ async function onComplete(final, type) {
     if (dot) dot.className = 'draft-sec-dot dot-ok';
     if (st) st.textContent = '✓ 已完成';
   });
+  addSectionRedoButtons();
   const evSummary = final.evidence || {};
   currentReport = { title: final.title, evidence: null, files: final.files || {}, preview: final.preview, confidence: final.confidence, dir: final.dir };
 
