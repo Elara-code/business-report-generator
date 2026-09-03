@@ -495,7 +495,7 @@ async function redoSection(index, btn) {
     const frame = $('#reportFrame');
     if (frame) {
       const base = frame.src.split('#')[0];
-      frame.src = base + '#sec-' + index;
+      frame.src = base + '#sec-' + (index + 1);  // HTML 锚点从 sec-1 开始
     }
   } catch (e) {
     addAgentMessage('重写失败：' + e.message);
