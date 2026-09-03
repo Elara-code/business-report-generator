@@ -205,10 +205,19 @@ def _report_schema_hint() -> str:
   "summary": "150-250 字执行摘要（结论先行，带 [N] 引用）",
   "sections": [
     {"title": "章节标题", "content": "Markdown 正文（带 [N] 引用）",
-     "chart": {"type": "bar|line|radar|canvas|funnel|value_chain|matrix|null", "title": "", "data": {}}}
+     "chart": {"type": "bar|line|radar|canvas|value_chain|matrix|null", "title": "", "data": {}}}
   ],
   "appendix": {"data_sources": ["来源标题"], "limitations": "局限性说明"}
 }
+
+【chart.data 字段必须严格按下表输出；没有可结构化数值的章节请用 type=null】
+- bar（横向条形）: {"categories": ["A","B"], "values": [25, 18], "unit": "%"}
+- line（折线）: {"categories": ["2024","2025"], "series": [{"name":"规模","values":[100,130]}], "unit": "亿元"}
+- radar（雷达，维度打分 0-5）: {"axes": ["效率","成本"], "values": [4, 3]}
+- canvas（商业模式画布，9 宫格）: {"key_partners":[...], "key_activities":[...], "value_propositions":[...], "customer_relationships":[...], "key_resources":[...], "channels":[...], "customer_segments":[...], "cost_structure":[...], "revenue_streams":[...]}
+- value_chain（价值链）: {"stages": [{"name":"上游","items":["原材料"],"margin":"高"}, {"name":"中游","items":["生产"],"margin":"中"}]}
+- matrix（2x2 象限）: {"x_label":"易用性","y_label":"深度","points":[{"name":"产品A","x":4,"y":3}]}
+【禁止】data 里写中文 key（如 items/note/dimensions/scenarios/方向），禁止把文字结论当数值；各字段必须与上表完全一致。
 """
 
 

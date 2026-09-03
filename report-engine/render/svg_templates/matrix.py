@@ -81,7 +81,7 @@ def render(data: dict, title: str | None = None, width: int = 560, height: int =
 
     # 点
     for i, p in enumerate(points):
-        px, py = to_xy(p["x"], p["y"])
+        px, py = to_xy(p.get("x", 0), p.get("y", 0))
         color = SERIES_COLORS[i % len(SERIES_COLORS)]
         parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="11" fill="{color}" fill-opacity="0.25"/>')
         parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="6" fill="{color}"/>')

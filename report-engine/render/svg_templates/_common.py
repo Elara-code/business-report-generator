@@ -80,3 +80,25 @@ def svg_header(width: int, height: int, title: str | None = None) -> str:
 
 def svg_footer() -> str:
     return "</svg>"
+
+
+def text_card(title: str | None, lines: list[str], note: str | None = None) -> str:
+    """文字说明卡：当图表缺结构化数据、但有文字性结论时，渲染成专业的说明卡，
+    而不是裸占位文本「（数据缺失）」。"""
+    rows = []
+    for ln in lines:
+        ln = (ln or "").strip()
+        if not ln:
+            continue
+        rows.append(f'<div style="padding:4px 0;color:#334155;font-size:13px;line-height:1.6">{esc(ln)}</div>')
+    if not rows:
+        return ""
+    body = "".join(rows)
+    if note:
+        body += f'<div style="margin-top:8px;padding-top:8px;border-top:1px solid #eef2f6;color:#94a3b8;font-size:11px">{esc(note)}</div>'
+    head = f'<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:8px">{esc(title)}</div>' if title else ""
+    return (
+        f'<div style="padding:16px 18px;border:1px solid #e2e8f0;border-radius:12px;'
+        f'background:linear-gradient(180deg,#fafcfe,#f4f7fb)">'
+        f'{head}{body}</div>'
+    )

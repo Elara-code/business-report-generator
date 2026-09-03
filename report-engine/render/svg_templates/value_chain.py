@@ -53,6 +53,11 @@ def render(data: dict, title: str | None = None, width: int = 880, height: int =
     ))
 
     for i, s in enumerate(stages):
+        # 防御：LLM 可能直接给字符串列表（normalize 已处理，这里再兜一层）
+        if isinstance(s, str):
+            s = {"name": s}
+        elif not isinstance(s, dict):
+            s = {"name": str(s)}
         x = 30 + (box_w + 30) * i
         margin = s.get("margin", "中")
         m_color = MARGIN_COLORS.get(margin, PALETTE["muted"])
