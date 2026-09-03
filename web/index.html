@@ -67,6 +67,12 @@
     <!-- 输入区 -->
     <div class="middle-footer">
       <div class="param-row">
+        <span class="param-label">生成引擎</span>
+        <button class="choice active" data-group="engine" data-engine="mock">演示模式（离线）</button>
+        <button class="choice" data-group="engine" data-engine="openai">真实模型（联网）</button>
+        <span class="engine-hint" id="engineHint">演示模式：离线语料，无需 Key</span>
+      </div>
+      <div class="param-row">
         <span class="param-label">报告类别</span>
         <button class="choice active" data-group="type" data-type="industry">行业分析</button>
         <button class="choice" data-group="type" data-type="product">产品拆解</button>

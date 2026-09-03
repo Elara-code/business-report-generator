@@ -128,6 +128,7 @@ function setRunBadge(text, on) {
 async function doSubmit() {
   if (running) return;
   const type = $('.choice[data-group="type"].active')?.dataset.type || 'industry';
+  const ai = $('.choice[data-group="engine"].active')?.dataset.engine || 'mock';
   const subject = $('#prompt').value.trim();
   const market = $('#marketSel').value;
   const time_range = $('#timeSel').value;
@@ -144,7 +145,7 @@ async function doSubmit() {
   $('#prompt').value = '';
   currentReport = null;
 
-  addUserBubble(subject, `已按参数：${TYPE_LABEL[type]} · ${market} / ${time_range}（北京时间） / ${audience} · 输出 ${format.toUpperCase()}`);
+  addUserBubble(subject, `已按参数：${TYPE_LABEL[type]} · ${market} / ${time_range}（北京时间） / ${audience} · 输出 ${format.toUpperCase()} · ${ai === 'openai' ? '真实模型' : '演示模式'}`);
   addAgentMessage('收到。我会先解析分析意图，再搜索公开网络信息，抽取关键事实并进行多源交叉验证，最后只基于已核实的证据生成带来源引用的报告。未经确认的内容会单独标注。');
   $('#traceTime').textContent = '0s';
   const t0 = Date.now();
@@ -161,7 +162,7 @@ async function doSubmit() {
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, subject, ai: 'mock', preset: null, formats, market, time_range, audience }),
+      body: JSON.stringify({ type, subject, ai, preset: null, formats, market, time_range, audience }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -334,12 +335,22 @@ function renderSources(ev) {
 }
 
 // ---------------- 交互控件 ----------------
-$$('.choice[data-group="type"]').forEach((b) => {
+$$('.choice').forEach((b) => {
   b.addEventListener('click', () => {
-    $$('.choice[data-group="type"]').forEach((x) => x.classList.remove('active'));
+    const g = b.dataset.group;
+    $$(`.choice[data-group="${g}"]`).forEach((x) => x.classList.remove('active'));
     b.classList.add('active');
+    if (g === 'engine') updateEngineHint();
   });
 });
+function updateEngineHint() {
+  const e = $('.choice[data-group="engine"].active')?.dataset.engine;
+  const h = $('#engineHint');
+  if (!h) return;
+  h.textContent = e === 'openai'
+    ? '真实模型：联网检索 + LLM，需服务端配置 OPENAI_API_KEY'
+    : '演示模式：离线语料，无需 Key';
+}
 const fmtMenu = $('#formatMenu'), fmtLabel = $('#formatLabel');
 $('#formatTrigger').addEventListener('click', (e) => { e.stopPropagation(); fmtMenu.classList.toggle('show'); });
 $$('.format-option').forEach((b) => b.addEventListener('click', () => {
