@@ -695,6 +695,43 @@ $('#downloadBtn').onclick = () => {
 $('#newWinBtn').onclick = () => {
   if (currentReport && currentReport.preview) window.open(assetUrl(currentReport.preview), '_blank');
 };
+$('#pdfBtn').onclick = () => {
+  if (!currentReport || !currentReport.dir) return;
+  const btn = $('#pdfBtn');
+  const old = btn.textContent;
+  btn.textContent = '导出中…';
+  btn.disabled = true;
+  fetch('/api/export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dir: currentReport.dir, format: 'pdf' }),
+  })
+    .then((r) => r.json().catch(() => ({})))
+    .then((d) => {
+      if (!d.ok) throw new Error(d.error || '导出失败');
+      window.open(assetUrl(d.url), '_blank');
+      addAgentMessage(`已导出 PDF：${d.file}（可在新窗口下载保存）`);
+    })
+    .catch((e) => addAgentMessage('导出 PDF 失败：' + e.message))
+    .finally(() => { btn.textContent = old; btn.disabled = false; });
+};
+$('#copyLinkBtn').onclick = () => {
+  const dir = currentReport && currentReport.dir;
+  if (!dir) return;
+  const url = location.origin + '/reports/' + encodeURI(dir) + '/report.html';
+  (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject(new Error('no clipboard')))
+    .then(() => addAgentMessage('已复制报告链接，可直接分享。'))
+    .catch(() => {
+      // 降级：选中提示框内容
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      addAgentMessage('已复制报告链接（降级方式）。');
+    });
+};
 
 // ---------------- 三栏列宽拖拽 ----------------
 function setupDrag() {

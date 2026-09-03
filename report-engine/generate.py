@@ -381,6 +381,8 @@ def cmd_serve(args) -> int:
                 return self._handle_followup()
             if self.path == "/api/regenerate-section":
                 return self._handle_regenerate_section()
+            if self.path == "/api/export":
+                return self._handle_export()
             return self._json({"error": "Not Found"}, 404)
 
         # ----- /api/generate（SSE 流式） -----
@@ -760,6 +762,44 @@ def cmd_serve(args) -> int:
             except Exception as e:
                 pass  # 渲染失败不阻塞返回，前端可刷新
             return self._json({"ok": True, "section": sec, "title": sec_title})
+
+        # ----- /api/export（导出报告为 html/md/pdf） -----
+        def _handle_export(self):
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                body = self.rfile.read(length).decode("utf-8")
+                req = json.loads(body) if body else {}
+            except Exception as e:
+                return self._json({"error": f"无效 JSON: {e}"}, 400)
+            rel_dir = str(req.get("dir") or "").strip().lstrip("/")
+            fmt = str(req.get("format") or "pdf").strip().lower()
+            if fmt not in ("html", "md", "pdf"):
+                return self._json({"error": "format 仅支持 html/md/pdf"}, 400)
+            if not rel_dir:
+                return self._json({"error": "缺少 dir"}, 400)
+            base = os.path.realpath(reports_dir)
+            target = os.path.realpath(os.path.join(base, rel_dir))
+            if not (target == base or target.startswith(base + os.sep)):
+                return self._json({"error": "非法路径"}, 400)
+            json_path = os.path.join(target, "report.json")
+            if not os.path.exists(json_path):
+                return self._json({"error": "报告不存在"}, 404)
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                report = coerce_report(data, data.get("meta", {}).get("type", "industry"),
+                                       data.get("meta", {}).get("subject", ""))
+                outputs = render_formats(report, [fmt], target)
+            except Exception as e:
+                return self._json({"error": f"导出失败: {e}"}, 500)
+            err_key = f"{fmt}_error"
+            if err_key in outputs:
+                return self._json({"error": f"渲染失败: {outputs[err_key]}"}, 500)
+            p = outputs.get(fmt)
+            if not p or not os.path.exists(p):
+                return self._json({"error": "导出文件不存在"}, 500)
+            rel = os.path.relpath(p, workspace_root)
+            return self._json({"ok": True, "format": fmt, "url": rel, "file": f"report.{fmt}"})
 
         # ----- /api/projects（创建项目 = 在 reports/ 下建目录） -----
         def _handle_create_project(self):
