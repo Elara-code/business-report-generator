@@ -205,9 +205,20 @@ def do_generate(report_type: str, subject: str, ai: str, preset: str | None,
             searcher, warn = get_searcher(prefer="curated")
             llm = None
         else:
-            provider = get_provider(ai, preset=preset)
-            llm = lambda system, user, json_mode=True: provider.complete(  # noqa: E731
-                system, user, json_mode=json_mode)
+            provider = get_provider(ai, preset=preset, timeout=90)
+            def _complete(system: str, user: str, json_mode: bool = True) -> str:
+                # 先按请求模式调用；失败则降级为纯文本重试（部分国产模型不支持
+                # response_format=json_object），仍失败才抛错，由流水线兜底。
+                last_err: Exception | None = None
+                modes = [json_mode, False] if json_mode else [False]
+                for jm in modes:
+                    try:
+                        return provider.complete(system, user, json_mode=jm)
+                    except Exception as e:  # noqa: BLE001
+                        last_err = e
+                        print(f"  ⚠️  LLM 调用降级 (json_mode={jm}) 失败: {e}", file=sys.stderr)
+                raise last_err if last_err else RuntimeError("LLM 调用失败")
+            llm = _complete
             searcher, warn = get_searcher(prefer="auto")
         if warn:
             _progress("search", f"⚠️ {warn}")
