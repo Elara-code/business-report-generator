@@ -161,6 +161,7 @@ function openHistoryReport(btn) {
       .then((data) => {
         const ev = data.evidence || {};
         currentReport.evidence = ev;
+        restoreTraceFromLog(ev.log);
         renderSourceBox(ev);
         renderChain(ev);
         renderSources(ev);
@@ -169,6 +170,27 @@ function openHistoryReport(btn) {
         $('#chainList').innerHTML = '<div class="report-empty">历史报告未包含证据链数据。</div>';
         $('#srcList').innerHTML = '<div class="report-empty">历史报告未包含来源清单。</div>';
       });
+  }
+}
+
+// 打开历史报告时，用 report.json 中持久化的 evidence.log 恢复「运行日志 · 研究流水线」。
+// 新报告 7 步齐全；老报告只有前 5 步，缺失步骤用完成态兜底。
+function restoreTraceFromLog(log) {
+  const keys = ['parse', 'search', 'filter', 'extract', 'verify', 'draft', 'render'];
+  const fallback = ['任务解析完成', '检索完成', '来源筛选完成', '事实抽取完成', '交叉验证完成', '报告已生成', '渲染完成'];
+  const steps = (log && log.steps) || [];
+  keys.forEach((k, i) => {
+    const st = steps[i];
+    const msg = st ? (st.message || st.detail || fallback[i]) : fallback[i];
+    stepState('step-' + k, 'done');
+    setStepMsg('step-' + k, msg);
+  });
+  $('#runBadge').style.display = 'none';
+  if (log) {
+    const t = $('#traceTime');
+    const start = String(log.started_at || '').replace('T', ' ').slice(0, 16);
+    const sec = Math.round((log.elapsed_ms || 0) / 1000);
+    t.textContent = (start || '历史') + (sec ? ` · ${sec}s` : '');
   }
 }
 

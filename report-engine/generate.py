@@ -257,6 +257,17 @@ def do_generate(report_type: str, subject: str, ai: str, preset: str | None,
                            on_outline=_on_outline if on_stream else None,
                            on_section=_on_section if on_stream else None)
         raw = attach_evidence(raw, chain)
+        # 补齐「证据驱动生成 / 渲染与导出」两步到流水线日志（run_research 只记前 5 步），
+        # 使历史报告 report.json 中的 evidence.log 完整 7 步，前端打开历史时可恢复运行日志
+        try:
+            _steps = raw.get("evidence", {}).get("log", {}).get("steps", [])
+            if _steps:
+                _steps.append({"name": "证据驱动生成", "status": "done",
+                               "message": f"撰写 {len(raw.get('sections', []))} 节报告", "detail": ""})
+                _steps.append({"name": "渲染与导出", "status": "done",
+                               "message": "渲染 HTML/Markdown 完成", "detail": ""})
+        except Exception:
+            pass
         report = coerce_report(raw, report_type, subject)
 
     # 2) 强制覆盖关键 meta（非 from_json 已覆盖，此处兜底）
