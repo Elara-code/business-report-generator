@@ -376,6 +376,8 @@ def cmd_serve(args) -> int:
                 return self._handle_create_project()
             if self.path == "/api/cancel":
                 return self._handle_cancel()
+            if self.path == "/api/followup":
+                return self._handle_followup()
             return self._json({"error": "Not Found"}, 404)
 
         # ----- /api/generate（SSE 流式） -----
@@ -596,6 +598,63 @@ def cmd_serve(args) -> int:
                 ev.set()
                 return self._json({"ok": True, "cancelled": True})
             return self._json({"ok": False, "cancelled": False, "reason": "任务不存在或已结束"})
+
+        # ----- /api/followup（基于已生成报告的证据链追问） -----
+        def _handle_followup(self):
+            followup_system = """你是严谨的行业研究助手。基于给定的【事实清单】（每条含核实状态与来源编号）回答用户的追问。
+规则：
+1. 只能使用事实清单中的信息作答，不得编造清单之外的数字、事件或结论；
+2. 每个关键论断后用【来源N】标注来源编号（N 为来源列表序号）；
+3. 追问涉及事实清单未覆盖的内容时，明确说明「基于现有证据无法确认」，如需分析方向则标注为「推测」；
+4. 中文回答，简洁有结构，多用短句。"""
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                body = self.rfile.read(length).decode("utf-8")
+                req = json.loads(body) if body else {}
+            except Exception as e:
+                return self._json({"error": f"无效 JSON: {e}"}, 400)
+            rel_dir = str(req.get("dir") or "").strip().lstrip("/")
+            question = str(req.get("question") or "").strip()
+            if not rel_dir or not question:
+                return self._json({"error": "缺少 dir 或 question"}, 400)
+            base = os.path.realpath(reports_dir)
+            target = os.path.realpath(os.path.join(base, rel_dir))
+            if not (target == base or target.startswith(base + os.sep)):
+                return self._json({"error": "非法路径"}, 400)
+            json_path = os.path.join(target, "report.json")
+            if not os.path.exists(json_path):
+                return self._json({"error": "报告不存在"}, 404)
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception as e:
+                return self._json({"error": f"读取报告失败: {e}"}, 500)
+
+            ev = data.get("evidence") or {}
+            facts = ev.get("facts") or []
+            sources = ev.get("sources") or []
+            if not facts:
+                return self._json({"error": "该报告没有可追问的证据链"}, 400)
+            STATUS_CN = {"verified": "已核实", "unverified": "待确认", "conflicted": "冲突", "estimate": "估算"}
+            lines = []
+            for i, ft in enumerate(facts, 1):
+                st = STATUS_CN.get(ft.get("status"), ft.get("status"))
+                srcs = ",".join(str(s) for s in (ft.get("evidence") or [])) or "无来源"
+                lines.append(f"[事实{i}]({st}) 类别:{ft.get('category','')} 来源:{srcs} | {ft.get('claim','')}")
+            src_lines = []
+            for i, s in enumerate(sources, 1):
+                sn = (s.get("snippet") or "")[:200].replace("\n", " ")
+                src_lines.append(f"[{i}] {s.get('title','')} | {s.get('url','')} | {sn}")
+            user = (f"报告主题：{data.get('meta',{}).get('title', rel_dir)}\n\n"
+                    f"【事实清单】\n" + "\n".join(lines) +
+                    f"\n\n【来源列表】\n" + "\n".join(src_lines) +
+                    f"\n\n用户追问：{question}")
+            try:
+                provider = get_provider("openai", timeout=120)
+                ans = provider.complete(followup_system, user, json_mode=False)
+            except Exception as e:
+                return self._json({"error": f"LLM 调用失败: {e}"}, 500)
+            return self._json({"ok": True, "answer": (ans or "").strip(), "facts": len(facts), "sources": len(sources)})
 
         # ----- /api/projects（创建项目 = 在 reports/ 下建目录） -----
         def _handle_create_project(self):

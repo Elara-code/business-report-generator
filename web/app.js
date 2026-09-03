@@ -212,6 +212,7 @@ function addAgentMessage(text) {
   const el = document.createElement('div');
   el.className = 'agent-message';
   el.innerHTML = `<div class="head"><span class="agent-icon">R</span><b>Report Agent</b><span>${now} · 北京时间</span></div><p>${escapeHtml(text)}</p>`;
+  el.querySelector('p').style.whiteSpace = 'pre-wrap';
   $('#chatArea').appendChild(el);
 }
 function setStepMsg(stepId, msg) {
@@ -269,8 +270,12 @@ function paramVal(id) {
 // ---------------- 主流程 ----------------
 async function doSubmit() {
   if (running) return;
-  const type = $('.choice[data-group="type"].active')?.dataset.type || 'industry';
   const subject = $('#prompt').value.trim();
+  // 已有当前报告 → 输入即对报告追问（点「新建分析」才回到新任务）
+  if (subject && currentReport && currentReport.dir) {
+    return doFollowup(subject);
+  }
+  const type = $('.choice[data-group="type"].active')?.dataset.type || 'industry';
   const market = paramVal('#marketInput');
   const time_range = paramVal('#timeInput');
   const audience = paramVal('#audienceInput');
@@ -410,6 +415,31 @@ async function doSubmit() {
     activeReader = null;
     $('#sendBtn').disabled = false;
     $('#cancelBtn').style.display = 'none';
+  }
+}
+
+// ---------------- 对话追问（基于当前报告证据链） ----------------
+async function doFollowup(question) {
+  running = true;
+  $('#sendBtn').disabled = true;
+  $('#prompt').value = '';
+  const title = (currentReport && currentReport.title) || '当前报告';
+  addUserBubble(question, `追问：${title}`);
+  addAgentMessage('正在基于报告的已核实证据链思考…');
+  try {
+    const res = await fetch('/api/followup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dir: currentReport.dir, question }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data.error || '追问失败');
+    addAgentMessage(data.answer || '（空回答）');
+  } catch (e) {
+    addAgentMessage('追问出错：' + e.message);
+  } finally {
+    running = false;
+    $('#sendBtn').disabled = false;
   }
 }
 
