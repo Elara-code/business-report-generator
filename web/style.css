@@ -98,6 +98,22 @@ a{color:var(--green-deep);text-decoration:none}
 .step-text p{margin:2px 0 0;color:#a2ada5;font-size:10px;white-space:pre-line}
 .step.current .step-text b{color:#1f9556}
 .step .chip{margin-top:5px}
+/* 流式生成：报告骨架（outline 秒开 + 逐节填充） */
+.draft-outline{display:none;margin-top:8px;border:1px solid #e0e8e2;border-radius:10px;padding:8px;background:#fbfdfb}
+.draft-sec{display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px dashed #e8efe9;font-size:11px}
+.draft-sec:last-child{border-bottom:none}
+.draft-sec-dot{width:8px;height:8px;border-radius:50%;flex:none}
+.dot-wait{background:#f2c94c}
+.dot-ok{background:#52c41a}
+.draft-sec-no{color:#aab4ac;font-size:10px;font-variant-numeric:tabular-nums}
+.draft-sec b{flex:1;min-width:0;color:#4a5a51;font-weight:600}
+.draft-sec-state{color:#c0a84f;font-size:10px;flex:none}
+.draft-sec.done .draft-sec-state{color:#52a06b}
+.draft-sec-sum{margin-top:3px;padding-left:16px}
+.draft-sec-sum em{color:#8b988f;font-style:normal;font-size:10px;line-height:1.5}
+.draft-chart-tag{margin-left:6px;color:#2f9e62;font-size:9px;border:1px solid #cdebd8;border-radius:8px;padding:0 5px;white-space:nowrap}
+.draft-sec-tips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;padding-left:16px}
+.draft-sec-tips span{background:#f0f7f2;color:#5b7363;font-size:10px;border-radius:8px;padding:2px 7px}
 /* 来源与事实 */
 .source-box{margin-top:12px;padding:12px;border:1px solid #d4ebdd;border-radius:9px;background:#f6fbf8}
 .source-head{display:flex;align-items:center;gap:7px;color:#2f8a58;font-size:11px;font-weight:800}

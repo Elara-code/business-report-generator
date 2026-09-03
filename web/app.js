@@ -298,6 +298,37 @@ async function doSubmit() {
           break;
         }
         if (phase === 'complete') { final = evt; break; }
+        if (phase === 'outline') {
+          // 报告骨架秒回：渲染章节占位（每节"生成中"）
+          const sections = evt.sections || [];
+          const box = $('#draftOutline');
+          box.innerHTML = sections.map((t, i) =>
+            `<div class="draft-sec" id="draft-sec-${i}"><span class="draft-sec-dot dot-wait"></span><span class="draft-sec-no">${String(i + 1).padStart(2, '0')}</span><b>${escapeHtml(t)}</b><span class="draft-sec-state">生成中…</span></div>`).join('');
+          box.style.display = 'block';
+          setRunBadge('正在生成报告（骨架已就绪，正在撰写全部章节，约 2-3 分钟）…', true);
+          addAgentMessage(`报告骨架已生成，共 ${sections.length} 节，正在撰写全部章节…`);
+          continue;
+        }
+        if (phase === 'section') {
+          // 单节完成：更新骨架状态 + 展示该节要点
+          const i = evt.index;
+          const sec = evt.section || {};
+          const kps = (sec.key_points || []).slice(0, 4);
+          const node = $('#draft-sec-' + i);
+          if (node) {
+            node.classList.add('done');
+            node.querySelector('.draft-sec-dot').className = 'draft-sec-dot dot-ok';
+            node.querySelector('.draft-sec-state').textContent = '✓ 已完成';
+            const tips = kps.length
+              ? `<div class="draft-sec-tips">${kps.map((k) => `<span>${escapeHtml(k)}</span>`).join('')}</div>` : '';
+            const chartType = (sec.chart && sec.chart.type && sec.chart.type !== 'null') ? sec.chart.type : null;
+            node.insertAdjacentHTML('beforeend',
+              `<div class="draft-sec-sum"><em>${escapeHtml(sec.content || '').slice(0, 90)}</em>${chartType ? `<span class="draft-chart-tag">配图 · ${chartType}</span>` : ''}</div>${tips}`);
+          }
+          setStepMsg('step-draft', `第 ${i + 1} 节《${sec.title || ''}》已生成`);
+          setRunBadge(`正在生成报告（已生成 ${i + 1} 节…）`, true);
+          continue;
+        }
         if (PHASE_STEP[phase]) {
           const idx = PHASES.indexOf(phase);
           if (idx > lastIdx) {
@@ -331,6 +362,14 @@ async function onComplete(final, type) {
   PHASES.forEach((p) => stepState('step-' + p, 'done'));
   setRunBadge('已完成', false);
   setStepMsg('step-render', (final.message || '✅ 报告已生成'));
+  // 流式骨架全部标记完成
+  document.querySelectorAll('#draftOutline .draft-sec').forEach((n) => {
+    n.classList.add('done');
+    const dot = n.querySelector('.draft-sec-dot');
+    const st = n.querySelector('.draft-sec-state');
+    if (dot) dot.className = 'draft-sec-dot dot-ok';
+    if (st) st.textContent = '✓ 已完成';
+  });
   const evSummary = final.evidence || {};
   currentReport = { title: final.title, evidence: null, files: final.files || {}, preview: final.preview, confidence: final.confidence, dir: final.dir };
 

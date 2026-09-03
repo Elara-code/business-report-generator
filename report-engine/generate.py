@@ -26,6 +26,7 @@ import os
 import re
 import shutil
 import sys
+import threading
 import uuid
 from datetime import datetime
 from typing import Any
@@ -163,7 +164,8 @@ def make_out_dir(root: str, report_type: str, subject: str) -> str:
 def do_generate(report_type: str, subject: str, ai: str, preset: str | None,
                 formats: list[str], out_root: str, from_json: str | None,
                 on_progress=None, market: str | None = None,
-                time_range: str | None = None, audience: str | None = None) -> tuple[Report, dict[str, str], str]:
+                time_range: str | None = None, audience: str | None = None,
+                on_stream=None) -> tuple[Report, dict[str, str], str]:
     """统一处理 CLI 与 HTTP 入口。返回 (Report, outputs, target_dir)。
 
     v1（研究流水线）：
@@ -175,6 +177,10 @@ def do_generate(report_type: str, subject: str, ai: str, preset: str | None,
     on_progress 回调用于 SSE 流式响应：
         on_progress(phase: str, message: str) -> None
         phase ∈ {"init","parse","search","filter","extract","verify","draft","render","done","error"}
+
+    on_stream 回调用于 draft 阶段的细粒度流式事件（可选）：
+        on_stream(kind: str, payload: dict) -> None
+        kind ∈ {"outline"（骨架节标题列表）, "section"（单节已生成，含 index/section）}
     """
     if report_type not in schemas.SUPPORTED_TYPES:
         raise ValueError(f"type 必须是 {schemas.SUPPORTED_TYPES}，收到: {report_type}")
@@ -184,6 +190,13 @@ def do_generate(report_type: str, subject: str, ai: str, preset: str | None,
         if on_progress:
             try:
                 on_progress(phase, msg)
+            except Exception:
+                pass
+
+    def _stream(kind: str, payload: dict):
+        if on_stream:
+            try:
+                on_stream(kind, payload)
             except Exception:
                 pass
 
@@ -229,9 +242,20 @@ def do_generate(report_type: str, subject: str, ai: str, preset: str | None,
         # 执行研究流水线
         chain = run_research(plan, searcher, llm=llm, on_progress=_progress)
 
-        # 证据驱动生成
+        # 证据驱动生成（流式：outline 骨架秒回 + 逐节推送）
         _progress("draft", f"基于 {len(chain.facts)} 条事实撰写报告…")
-        raw = draft_report(plan, chain, llm=llm)
+
+        def _on_outline(titles: list[str]):
+            _progress("draft", f"报告骨架已生成：{len(titles)} 节")
+            _stream("outline", {"sections": titles, "total": len(titles)})
+
+        def _on_section(idx: int, sec: dict):
+            _progress("draft", f"第 {idx + 1} 节《{sec.get('title', '')}》已生成")
+            _stream("section", {"index": idx, "section": sec})
+
+        raw = draft_report(plan, chain, llm=llm,
+                           on_outline=_on_outline if on_stream else None,
+                           on_section=_on_section if on_stream else None)
         raw = attach_evidence(raw, chain)
         report = coerce_report(raw, report_type, subject)
 
@@ -348,15 +372,19 @@ def cmd_serve(args) -> int:
             self.send_header("X-Accel-Buffering", "no")  # 禁 nginx 缓冲
             self.end_headers()
 
+            _sse_lock = threading.Lock()
+
             def emit(phase: str, message: str, **extra):
                 payload = {"phase": phase, "message": message, **extra}
                 line = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-                try:
-                    self.wfile.write(line.encode("utf-8"))
-                    self.wfile.flush()
-                except (BrokenPipeError, ConnectionResetError):
-                    # 客户端断开，吞掉异常
-                    pass
+                # 并发逐节生成时多个线程可能同时 emit，写入必须串行化
+                with _sse_lock:
+                    try:
+                        self.wfile.write(line.encode("utf-8"))
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError):
+                        # 客户端断开，吞掉异常
+                        pass
 
             try:
                 out_root = os.path.join(reports_dir, project) if project else reports_dir
@@ -370,6 +398,9 @@ def cmd_serve(args) -> int:
                     out_root=out_root,
                     from_json=None,
                     on_progress=lambda phase, msg: emit(phase, msg),
+                    on_stream=lambda kind, payload: emit(
+                        kind, payload.get("message", ""),
+                        **{k: v for k, v in payload.items() if k != "message"}),
                     market=market,
                     time_range=time_range,
                     audience=audience,
