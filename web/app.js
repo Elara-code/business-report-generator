@@ -207,6 +207,10 @@ function resetTrace() {
   $('#conflictBanner').style.display = 'none';
   $('#sourceBox').style.display = 'none';
   $('#chatArea').innerHTML = '';
+  // 清空流水线各步日志与「证据驱动生成」骨架（outline 秒开留下的章节占位）
+  document.querySelectorAll('.step .msg').forEach((p) => { p.textContent = ''; });
+  const dob = $('#draftOutline');
+  if (dob) { dob.innerHTML = ''; dob.style.display = 'none'; }
 }
 // 新建分析：完整重置工作台（输入框 + 对话/流水线 + 报告预览）
 function resetWorkspace() {
