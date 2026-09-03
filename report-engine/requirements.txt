@@ -5,6 +5,9 @@ weasyprint>=62
 pydantic>=2.6
 bleach>=6.1
 
+# 研究流水线检索（可选：缺失时自动回退到离线演示语料）
+ddgs>=8.0
+
 # dev
 pytest>=8.0
 pytest-asyncio>=0.23

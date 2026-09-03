@@ -39,6 +39,35 @@ python generate.py gen --type industry --subject "咖啡" --ai openai --formats 
 
 输出在 `reports/20260710_HHMMSS_us_<type>_<subject>_<short-uuid>/`，含 `report.html` / `report.md` / `report.pdf` / `report.json`。
 
+## 🧬 v1：基于公开信息的研究流水线（不再"单次 LLM 幻觉"）
+
+v1 起，生成流程从"一次 LLM 编造全文"升级为**可追溯的研究闭环**：
+
+```
+意图解析 → 公开检索 → 来源筛选与去重 → 事实抽取 → 交叉验证 → 证据驱动生成 → 渲染与导出
+   parse        search         filter           extract       verify        draft          render
+```
+
+- **来源三态**：每条事实被判定为 `已核实`（≥2 个独立来源）/ `待确认`（单源）/ `冲突`（同指标口径不一致）；
+- **置信度可计算**：由多源核实比例得出（非 LLM 自评），存在冲突时封顶 0.60；
+- **正文引用**：量化论断自动挂 `[N]` 引用，点击跳转文末"证据与来源"章节的原始链接；
+- **演示语料**：`research/corpus/*.json` 内置咖啡 / Notion / 竞品三份语料，无需网络与 API 即可端到端演示；
+- **真实检索**：`--ai openai` 时用 DuckDuckGo 免费检索真实公开信息 + LLM 抽取/起草；LLM 或网络失败自动回退离线组装，流水线不中断。
+
+新增 CLI 参数：`--market`（默认 全国）、`--time-range`（默认 近1年）、`--audience`（默认 普通读者）。
+
+```bash
+# 离线演示（语料）
+python generate.py gen --type industry --subject "中国现制咖啡" --ai mock --preset coffee \
+    --market 全国 --time-range 近1年 --audience 普通读者
+
+# 真实检索（有网络）
+python generate.py gen --type competitor --subject "Notion vs Obsidian" --ai openai
+```
+
+Web 服务 SSE 事件同步扩展为 `init / parse / search / filter / extract / verify / draft / render / complete`，
+`complete` 事件附带证据链摘要（来源数 / 事实数 / 已核实 / 冲突 / 待确认），供前端"来源面板"与"冲突提示"使用。
+
 ### 2. 网页应用
 
 ```bash

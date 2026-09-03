@@ -37,6 +37,7 @@ import schemas  # noqa: E402
 from llm import extract_json, get_provider  # noqa: E402
 from render import html_renderer, md_renderer, pdf_renderer  # noqa: E402
 from report_model import Report, coerce_report  # noqa: E402
+from research import build_plan, run_research, get_searcher, draft_report, attach_evidence  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -160,12 +161,19 @@ def make_out_dir(root: str, report_type: str, subject: str) -> str:
 
 def do_generate(report_type: str, subject: str, ai: str, preset: str | None,
                 formats: list[str], out_root: str, from_json: str | None,
-                on_progress=None) -> tuple[Report, dict[str, str], str]:
+                on_progress=None, market: str | None = None,
+                time_range: str | None = None, audience: str | None = None) -> tuple[Report, dict[str, str], str]:
     """统一处理 CLI 与 HTTP 入口。返回 (Report, outputs, target_dir)。
+
+    v1（研究流水线）：
+      - 非 from_json 路径不再"单次 LLM 生成"，而是走
+        意图解析 → 公开检索 → 来源筛选 → 事实抽取 → 交叉验证 → 证据驱动生成；
+      - 关键数字全部来自证据链并标注来源编号与核实状态；
+      - 离线模式（--ai mock）用演示语料 + 确定性组装，仍可端到端演示。
 
     on_progress 回调用于 SSE 流式响应：
         on_progress(phase: str, message: str) -> None
-        phase ∈ {"init", "llm", "render", "done", "error"}
+        phase ∈ {"init","parse","search","filter","extract","verify","draft","render","done","error"}
     """
     if report_type not in schemas.SUPPORTED_TYPES:
         raise ValueError(f"type 必须是 {schemas.SUPPORTED_TYPES}，收到: {report_type}")
@@ -187,19 +195,35 @@ def do_generate(report_type: str, subject: str, ai: str, preset: str | None,
         data = extract_json(raw)
         report = Report.model_validate(data)
     else:
-        try:
-            provider = get_provider(ai, preset=preset)
-        except Exception as e:
-            raise RuntimeError(f"LLM 初始化失败: {e}") from e
-        system, user = load_prompt(report_type, subject)
-        _progress("llm", f"🤖 调 LLM ({provider.name}) ...")
-        report = call_llm_with_retry(provider, system, user)
-        _progress("llm", "✅ LLM 返回完成")
+        # ---- 研究流水线 ----
+        plan = build_plan(report_type, subject, market=market or "",
+                          time_range=time_range or "", audience=audience or "")
+        _progress("parse", f"已解析分析任务：{plan.display}")
 
-    # 2) 强制覆盖关键 meta
+        # 检索层 + LLM 回调
+        if ai == "mock":
+            searcher, warn = get_searcher(prefer="curated")
+            llm = None
+        else:
+            provider = get_provider(ai, preset=preset)
+            llm = lambda system, user, json_mode=True: provider.complete(  # noqa: E731
+                system, user, json_mode=json_mode)
+            searcher, warn = get_searcher(prefer="auto")
+        if warn:
+            _progress("search", f"⚠️ {warn}")
+
+        # 执行研究流水线
+        chain = run_research(plan, searcher, llm=llm, on_progress=_progress)
+
+        # 证据驱动生成
+        _progress("draft", f"基于 {len(chain.facts)} 条事实撰写报告…")
+        raw = draft_report(plan, chain, llm=llm)
+        raw = attach_evidence(raw, chain)
+        report = coerce_report(raw, report_type, subject)
+
+    # 2) 强制覆盖关键 meta（非 from_json 已覆盖，此处兜底）
     raw_dict = report.model_dump()
-    coerced = coerce_report(raw_dict, report_type, subject)
-    report = coerced
+    report = coerce_report(raw_dict, report_type, subject)
 
     # 3) 输出
     _progress("render", "💾 写入 report.json ...")
@@ -231,6 +255,9 @@ def cmd_gen(args) -> int:
             formats=args.formats.split(",") if isinstance(args.formats, str) else args.formats,
             out_root=args.out_dir or os.path.join(os.path.dirname(HERE), "reports"),
             from_json=args.from_json,
+            market=args.market,
+            time_range=args.time_range,
+            audience=args.audience,
         )
         return 0
     except Exception as e:
@@ -288,6 +315,9 @@ def cmd_serve(args) -> int:
             ai = req.get("ai", "mock")
             formats = req.get("formats", ["html"])
             preset = req.get("preset")
+            market = req.get("market")
+            time_range = req.get("time_range")
+            audience = req.get("audience")
 
             # SSE 头
             self.send_response(200)
@@ -317,17 +347,34 @@ def cmd_serve(args) -> int:
                     out_root=reports_dir,
                     from_json=None,
                     on_progress=lambda phase, msg: emit(phase, msg),
+                    market=market,
+                    time_range=time_range,
+                    audience=audience,
                 )
+                # 证据链摘要（供前端"来源面板 / 冲突提示"使用）
+                evidence = report.evidence or {}
+                facts = evidence.get("facts") or []
+                ev_summary = {
+                    "sources": len(evidence.get("sources") or []),
+                    "facts": len(facts),
+                    "verified": sum(1 for f in facts if f.get("status") == "verified"),
+                    "conflicted": sum(1 for f in facts if f.get("status") == "conflicted"),
+                    "unverified": sum(1 for f in facts if f.get("status") == "unverified"),
+                }
                 # 终态事件
                 emit("complete", "✅ 报告已生成", done=True, ok=True,
                      dir=os.path.relpath(target, workspace_root),
                      title=report.meta.title,
                      confidence=(report.meta.confidence.model_dump() if report.meta.confidence else None),
+                     evidence=ev_summary,
                      files={k: os.path.relpath(v, workspace_root) for k, v in outputs.items()},
                      preview=next((f"reports/{os.path.basename(target)}/report.html"
                                     for k in ("html",) if k in outputs), None))
             except Exception as e:
                 emit("error", f"❌ {e}", done=True, ok=False, error=str(e))
+            # 关键：显式关闭连接。http.server 默认 HTTP/1.1 keep-alive，
+            # 若不关闭，浏览器 fetch 流式读取永远等不到 EOF，收不到 complete 终态。
+            self.close_connection = True
             return
 
         # ----- /api/history -----
@@ -403,10 +450,13 @@ def main():
     g.add_argument("--type", choices=schemas.SUPPORTED_TYPES, required=True)
     g.add_argument("--subject", required=True, help="行业名 / 产品名 / 竞品组合")
     g.add_argument("--ai", choices=schemas.SUPPORTED_AI, default="mock")
-    g.add_argument("--preset", help="mock 模式下使用哪份预生成报告 (coffee / notion / notion-vs-obsidian)")
+    g.add_argument("--preset", help="mock 模式下使用哪份演示语料 (coffee / notion / notion-vs-obsidian)")
     g.add_argument("--formats", default="html,md", help="逗号分隔: html,md,pdf")
     g.add_argument("--out-dir", help="输出根目录（默认 ./reports）")
-    g.add_argument("--from-json", help="跳过 LLM，直接从 JSON 文件读取并渲染")
+    g.add_argument("--from-json", help="跳过研究流水线，直接从 JSON 文件读取并渲染")
+    g.add_argument("--market", help="市场范围（默认 全国）")
+    g.add_argument("--time-range", help="时间范围（默认 近1年）")
+    g.add_argument("--audience", help="目标读者（默认 普通读者）")
     g.set_defaults(func=cmd_gen)
 
     s = sub.add_parser("serve", help="启动网页后端")

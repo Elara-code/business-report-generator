@@ -3,118 +3,159 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>商业分析报告生成器 · WorkBuddy AI</title>
-<link rel="stylesheet" href="style.css">
+<title>Report Agent · 商业研究工作站</title>
+<link rel="stylesheet" href="/web/style.css">
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">
-    <span class="logo">📊</span>
-    <div>
-      <div class="brand-title">商业分析报告生成器</div>
-      <div class="brand-sub">WorkBuddy AI · 一键生成图文并茂的商业 / 产品 / 竞品报告</div>
+<div class="shell">
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div class="brand"><span class="mark">R</span><b>Report Agent</b><small>商业研究工作站 · 基于公开信息生成专业报告</small></div>
+    <div class="top-right">
+      <span class="mode-pill" id="modePill"><i></i>公开网络检索 + 事实确认</span>
+      <button class="top-btn" id="historyBtn">历史报告</button>
+      <span class="avatar">E</span>
     </div>
-  </div>
-  <div class="topbar-actions">
-    <a href="#" class="link" id="link-history">历史报告</a>
-  </div>
-</header>
+  </header>
 
-<main class="app">
-  <!-- 左侧：表单 -->
-  <aside class="panel">
-    <h2 class="panel-title">新建报告</h2>
-    <form id="form">
-      <div class="field">
-        <label>报告类型</label>
-        <div class="seg" role="radiogroup">
-          <input type="radio" name="type" value="industry" id="t-industry" checked>
-          <label for="t-industry">行业分析</label>
-          <input type="radio" name="type" value="product" id="t-product">
-          <label for="t-product">产品拆解</label>
-          <input type="radio" name="type" value="competitor" id="t-competitor">
-          <label for="t-competitor">竞品对比</label>
-        </div>
-        <p class="hint" id="type-hint">输入一个行业或领域，如「咖啡」「新能源汽车」「SaaS」</p>
-      </div>
-
-      <div class="field">
-        <label for="subject">主题</label>
-        <input type="text" id="subject" placeholder="例如：咖啡 / Notion / Notion vs Obsidian" required>
-      </div>
-
-      <div class="field">
-        <label for="ai">AI 提供商</label>
-        <select id="ai">
-          <option value="mock">🎭 Mock 演示（无需 API）</option>
-          <option value="openai">🤖 OpenAI / 兼容（DeepSeek / 通义等）</option>
-          <option value="workbuddy">💬 WorkBuddy AI（对话式）</option>
-        </select>
-      </div>
-
-      <div class="field" id="preset-field">
-        <label for="preset">演示报告（Mock 模式）</label>
-        <select id="preset">
-          <option value="coffee">☕ 中国现制咖啡行业</option>
-          <option value="notion">📝 Notion 产品拆解</option>
-          <option value="notion-vs-obsidian">⚔️ Notion vs Obsidian</option>
-          <option value="generic">📋 通用占位</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label>输出格式</label>
-        <div class="checks">
-          <label class="check"><input type="checkbox" name="formats" value="html" checked> HTML</label>
-          <label class="check"><input type="checkbox" name="formats" value="md" checked> Markdown</label>
-          <label class="check"><input type="checkbox" name="formats" value="pdf"> PDF（需 weasyprint）</label>
-        </div>
-      </div>
-
-      <button type="submit" class="primary" id="submit">🚀 生成报告</button>
-      <button type="button" class="secondary" id="quick-coffee">⚡ 看一份咖啡示范</button>
-    </form>
-
-    <div class="examples">
-      <div class="examples-title">或选择示范报告：</div>
-      <button data-preset="coffee" data-type="industry" data-subject="中国现制咖啡">☕ 咖啡行业</button>
-      <button data-preset="notion" data-type="product" data-subject="Notion">📝 Notion</button>
-      <button data-preset="notion-vs-obsidian" data-type="competitor" data-subject="Notion vs Obsidian">⚔️ Notion vs Obsidian</button>
+  <!-- 左栏：最近分析 -->
+  <aside class="left">
+    <button class="new-chat" id="newChat">＋ 新建分析</button>
+    <div class="nav-label">最近分析</div>
+    <div id="historyList">
+      <div class="chat-item" style="cursor:default"><span class="t" style="color:var(--navmuted)">加载中…</span></div>
+    </div>
+    <div class="left-bottom">
+      <div><b>当前模式：公开网络检索 + 事实确认</b></div>
+      <div>每个关键数字标注来源、时间与可信状态；未核实的不会写成确定性结论。</div>
     </div>
   </aside>
+  <div class="col-split split-l"></div>
 
-  <!-- 右侧：日志 + 预览 -->
-  <section class="content">
-    <div class="log-panel">
-      <div class="log-head">
-        <span>运行日志</span>
-        <button id="clear-log" class="link">清空</button>
+  <!-- 中栏：聊天 + 分析过程 -->
+  <section class="middle">
+    <div class="panel-head"><b>分析过程</b><span class="run-badge" id="runBadge" style="display:none"><i></i><span id="runBadgeText">就绪</span></span></div>
+    <div class="middle-scroll" id="middleScroll">
+      <!-- 聊天消息区 -->
+      <div id="chatArea"></div>
+
+      <!-- 分析过程 -->
+      <div class="proc-label">分析过程</div>
+
+      <!-- 运行日志：7 阶段研究流水线 -->
+      <div class="trace">
+        <div class="trace-title">运行日志 · 研究流水线 <span id="traceTime">等待开始</span></div>
+        <div class="step" id="step-parse"><span class="step-icon">1</span><div class="step-text"><b>01 理解分析任务</b><p class="msg"></p></div></div>
+        <div class="step" id="step-search"><span class="step-icon">2</span><div class="step-text"><b>02 公开网络检索</b><p class="msg"></p></div></div>
+        <div class="step" id="step-filter"><span class="step-icon">3</span><div class="step-text"><b>03 来源筛选与去重</b><p class="msg"></p></div></div>
+        <div class="step" id="step-extract"><span class="step-icon">4</span><div class="step-text"><b>04 事实抽取</b><p class="msg"></p></div></div>
+        <div class="step" id="step-verify"><span class="step-icon">5</span><div class="step-text"><b>05 交叉验证</b><p class="msg"></p><div class="chip" id="verifyChips" style="display:none;flex-wrap:wrap;gap:5px"></div></div></div>
+        <div class="step" id="step-draft"><span class="step-icon">6</span><div class="step-text"><b>06 证据驱动生成</b><p class="msg"></p></div></div>
+        <div class="step" id="step-render"><span class="step-icon">7</span><div class="step-text"><b>07 渲染与导出</b><p class="msg"></p></div></div>
       </div>
-      <pre id="log"></pre>
+
+      <!-- 冲突提示 -->
+      <div class="conflict-banner" id="conflictBanner"></div>
+
+      <!-- 已收集来源 -->
+      <div class="source-box" id="sourceBox" style="display:none">
+        <div class="source-head">⌕ 已收集的公开来源 <span class="source-count" id="sourceCount"></span></div>
+        <div id="sourceList"></div>
+      </div>
     </div>
 
-    <div class="preview-panel">
-      <div class="preview-head">
-        <span>报告预览</span>
-        <span id="preview-status" class="muted">尚未生成</span>
+    <!-- 输入区 -->
+    <div class="middle-footer">
+      <div class="param-row">
+        <span class="param-label">报告类别</span>
+        <button class="choice active" data-group="type" data-type="industry">行业分析</button>
+        <button class="choice" data-group="type" data-type="product">产品拆解</button>
+        <button class="choice" data-group="type" data-type="competitor">竞品对比</button>
       </div>
-      <iframe id="preview" sandbox="allow-same-origin"></iframe>
+      <div class="param-row">
+        <span class="param-label">研究范围</span>
+        <select class="param-select" id="marketSel">
+          <option value="全国" selected>市场：全国（默认）</option>
+          <option value="全球">市场：全球</option>
+          <option value="华东">市场：华东</option>
+          <option value="自定义">市场：自定义…</option>
+        </select>
+        <select class="param-select" id="timeSel">
+          <option value="近1年" selected>时间范围：近 1 年（北京时间）</option>
+          <option value="近3年">时间范围：近 3 年</option>
+          <option value="近5年">时间范围：近 5 年</option>
+          <option value="自定义">时间范围：自定义…</option>
+        </select>
+        <select class="param-select" id="audienceSel">
+          <option value="普通读者" selected>读者：普通读者（默认）</option>
+          <option value="投资人">读者：投资人</option>
+          <option value="创业者">读者：创业者</option>
+          <option value="产品经理">读者：产品经理</option>
+          <option value="采购选型">读者：采购选型</option>
+        </select>
+      </div>
+      <div class="composer-box">
+        <textarea id="prompt" placeholder="描述你想分析的行业、产品或竞品… 例如：中国现制咖啡行业 / Notion / Notion vs Obsidian"></textarea>
+        <div class="composer-bottom">
+          <div class="composer-tools">
+            <div class="format-select">
+              <button class="format-trigger" id="formatTrigger" type="button">输出格式：<span id="formatLabel">HTML</span></button>
+              <div class="format-menu" id="formatMenu">
+                <button class="format-option selected" data-format="html">HTML <small>默认</small></button>
+                <button class="format-option" data-format="md">Markdown</button>
+                <button class="format-option" data-format="pdf">PDF</button>
+              </div>
+            </div>
+            <span class="composer-hint">默认：HTML · 全国 · 近 1 年 · 普通读者 · Enter 发送</span>
+          </div>
+          <button class="send" id="sendBtn">↑</button>
+        </div>
+      </div>
     </div>
   </section>
-</main>
+  <div class="col-split split-r"></div>
 
-<!-- 历史报告抽屉 -->
-<div class="drawer" id="drawer" hidden>
-  <div class="drawer-mask"></div>
-  <div class="drawer-body">
-    <div class="drawer-head">
-      <h3>历史报告</h3>
-      <button class="link" id="close-drawer">关闭</button>
+  <!-- 右栏：报告预览 -->
+  <main class="right">
+    <div class="right-head">
+      <div class="right-title"><b>报告预览</b><span class="file-pill" id="filePill">report.html</span></div>
+      <div class="right-actions">
+        <button class="icon-btn" id="downloadBtn">↓ 下载</button>
+        <button class="icon-btn" id="newWinBtn">↗ 新窗口</button>
+      </div>
     </div>
-    <div id="history-list">加载中…</div>
-  </div>
+    <div class="view-tabs">
+      <button class="view-tab active" data-view="report">报告</button>
+      <button class="view-tab" data-view="chain">证据链</button>
+      <button class="view-tab" data-view="sources">来源清单</button>
+    </div>
+
+    <div class="report-area">
+      <!-- 视图1：报告 -->
+      <div id="view-report" class="view-panel">
+        <div class="report-empty" id="reportEmpty">输入主题后点击发送，生成结果将在这里预览</div>
+        <iframe id="reportFrame" class="report-frame hidden" title="报告预览"></iframe>
+      </div>
+      <!-- 视图2：证据链 -->
+      <div id="view-chain" class="view-panel hidden">
+        <div class="report" style="padding:20px 30px">
+          <h1 style="font-size:18px;margin-bottom:4px">证据链：来源 → 事实 → 论断</h1>
+          <p class="report-sub" style="margin-bottom:14px">每条论断都可以逐级回溯到原始公开来源，点击 [n] 可跳转到对应来源。</p>
+          <div class="chain" id="chainList"><div class="report-empty">暂无数据</div></div>
+        </div>
+      </div>
+      <!-- 视图3：来源清单 -->
+      <div id="view-sources" class="view-panel hidden">
+        <div class="report" style="padding:20px 30px">
+          <h1 style="font-size:18px;margin-bottom:4px">来源清单</h1>
+          <p class="report-sub" id="srcSummary" style="margin-bottom:14px"></p>
+          <div class="src-list" id="srcList"><div class="report-empty">暂无数据</div></div>
+        </div>
+      </div>
+    </div>
+  </main>
 </div>
 
-<script src="app.js"></script>
+<script src="/web/app.js"></script>
 </body>
 </html>

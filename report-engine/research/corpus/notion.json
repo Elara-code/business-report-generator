@@ -1,0 +1,57 @@
+{
+  "keywords": ["notion", "Notion", "笔记"],
+  "sources": [
+    {
+      "title": "Notion 官方网站 · 产品介绍",
+      "url": "https://www.notion.so/product",
+      "domain": "www.notion.so",
+      "published_at": "2025-06",
+      "source_type": "official",
+      "snippet": "Notion 定位为一站式工作空间，将笔记、文档、数据库、看板、Wiki 整合在一个产品中。",
+      "facts": [
+        {"claim": "Notion 定位为一体化工作空间", "category": "定位"},
+        {"claim": "支持文档、数据库、看板、Wiki 等核心模块", "category": "核心功能"},
+        {"claim": "Notion 以模块化编辑器与数据库著称", "category": "核心功能"}
+      ]
+    },
+    {
+      "title": "少数派 · Notion 深度评测",
+      "url": "https://sspai.com/post/notion-review",
+      "domain": "sspai.com",
+      "published_at": "2025-02",
+      "source_type": "media",
+      "snippet": "评测认为 Notion 灵活性强但上手成本高，AI 能力与数据库结合是其差异化。",
+      "facts": [
+        {"claim": "支持文档、数据库、看板、Wiki 等核心模块", "category": "核心功能"},
+        {"claim": "Notion 采用免费增值加订阅制，个人版每月约 10 美元", "category": "定价"},
+        {"claim": "Notion AI 主要面向付费用户开放", "category": "核心功能"},
+        {"claim": "中文用户反馈移动端性能一般", "category": "用户"}
+      ]
+    },
+    {
+      "title": "知乎专栏 · Notion 用户分析与上手成本讨论",
+      "url": "https://www.zhihu.com/question/notion-onboarding",
+      "domain": "www.zhihu.com",
+      "published_at": "2025-03",
+      "source_type": "media",
+      "snippet": "讨论普遍认为 Notion 自由度高但学习曲线陡峭，国内访问依赖网络环境。",
+      "facts": [
+        {"claim": "Notion 以模块化编辑器与数据库著称", "category": "核心功能"},
+        {"claim": "国内用户因服务器在海外导致访问成本偏高", "category": "用户"},
+        {"claim": "Notion 学习曲线陡峭，上手成本高", "category": "用户"}
+      ]
+    },
+    {
+      "title": "TechCrunch · Notion 融资与 AI 动态",
+      "url": "https://techcrunch.com/notion-valuation",
+      "domain": "techcrunch.com",
+      "published_at": "2025-05",
+      "source_type": "news",
+      "snippet": "Notion 估值约 100 亿美元，Notion AI 被视作订阅增长的新引擎。",
+      "facts": [
+        {"claim": "Notion 估值约 100 亿美元", "category": "增长"},
+        {"claim": "Notion AI 带动付费订阅增长", "category": "增长"}
+      ]
+    }
+  ]
+}

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime
 
 import bleach
@@ -20,10 +21,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ALLOWED_TAGS = [
     "p", "br", "hr", "strong", "em", "b", "i", "u", "s", "code", "pre",
     "blockquote", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6",
-    "a", "table", "thead", "tbody", "tr", "th", "td",
+    "a", "table", "thead", "tbody", "tr", "th", "td", "sup",
 ]
 ALLOWED_ATTRS = {
-    "a": ["href", "title", "rel", "target"],
+    "a": ["href", "title", "rel", "target", "id"],
     "th": ["align"],
     "td": ["align"],
 }
@@ -55,10 +56,29 @@ def _format_meta(report: dict) -> str:
     return f'{meta.get("title", "商业分析报告")} · {type_label}'
 
 
-def _md(text: str) -> str:
-    """渲染 Markdown 后做 HTML 清洗，剥离 <script> 等危险标签。"""
+# 引用匹配：[1]、[s1]、[2]
+_CITE_RE = re.compile(r"\[(s?)(\d+)\]")
+
+
+def _attach_citations(html: str, max_ref: int = 0) -> str:
+    """把正文里的 [N] / [sN] 转成可点击的上标引用（锚点 #ref-N）。"""
+    if max_ref <= 0:
+        return html
+
+    def repl(m: re.Match) -> str:
+        n = int(m.group(2))
+        if n <= 0 or n > max_ref:
+            return m.group(0)  # 越界编号保持原样，不强行转换
+        return f'<sup class="cite"><a href="#ref-{n}">[{n}]</a></sup>'
+
+    return _CITE_RE.sub(repl, html)
+
+
+def _md(text: str, max_ref: int = 0) -> str:
+    """渲染 Markdown 后做 HTML 清洗，剥离 <script> 等危险标签，再挂上引用锚点。"""
     raw = md_lib.markdown(text or "", extensions=["tables", "fenced_code"])
-    return _sanitize(raw)
+    cleaned = _sanitize(raw)
+    return _attach_citations(cleaned, max_ref=max_ref)
 
 
 def render(report: dict) -> str:
@@ -66,6 +86,8 @@ def render(report: dict) -> str:
     summary = report.get("summary", "")
     sections = report.get("sections", [])
     appendix = report.get("appendix", {})
+    evidence = report.get("evidence") or {}
+    max_ref = len(evidence.get("sources") or [])   # 引用编号上限
 
     css = _read_css()
 
@@ -90,7 +112,7 @@ def render(report: dict) -> str:
 <section class="section">
   <div class="section-num">{i:02d}</div>
   <h2 class="section-title">{_e(title)}</h2>
-  <div class="section-content">{_md(content_md)}</div>
+  <div class="section-content">{_md(content_md, max_ref)}</div>
   {f'<div class="chart-wrap">{chart_html}</div>' if chart_html else ''}
 </section>
 """)
@@ -111,6 +133,8 @@ def render(report: dict) -> str:
 
     # 置信度徽章（v0.3）
     confidence_html = _render_confidence_badge(meta.get("confidence"))
+    # 证据与来源章节（v1：研究流水线）
+    evidence_html = _render_evidence(evidence)
 
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -130,16 +154,17 @@ def render(report: dict) -> str:
       {confidence_html}
     </div>
     <h1 class="hero-title">{_e(meta.get("title", "商业分析报告"))}</h1>
-    <div class="hero-date">生成于 {_e(meta.get("generated_at", datetime.now().isoformat(timespec="seconds")))}</div>
+    <div class="hero-date">生成于 {_e(meta.get("generated_at", datetime.now().isoformat(timespec="seconds")))} · 数据截止 {_e((meta.get("confidence") or {}).get("data_cutoff") or "见来源说明")}</div>
   </header>
 
   <section class="summary">
     <div class="summary-label">执行摘要</div>
-    <div class="summary-body">{_md(summary)}</div>
+    <div class="summary-body">{_md(summary, max_ref)}</div>
   </section>
 
   {''.join(section_html)}
   {appendix_html}
+  {evidence_html}
 
   <footer class="report-foot">
     <span>本报告由 Report Engine 生成</span>
@@ -184,6 +209,78 @@ def _render_confidence_badge(conf: dict | None) -> str:
 <span class="confidence-badge" style="background:{style["color"]}1a;color:{style["color"]};border:1px solid {style["color"]}66;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;cursor:help" title="{tooltip}">
   {style["icon"]} {style["label"]}
 </span>'''
+
+
+# ---------------------------------------------------------------------------
+# 证据与来源章节（研究流水线 v1）
+# ---------------------------------------------------------------------------
+
+_EVIDENCE_STATUS = {
+    "verified":    ("已核实", "#149c6a", "#e8f8f0"),
+    "conflicted":  ("冲突",   "#dc2626", "#fef2f2"),
+    "unverified":  ("待确认", "#b7791f", "#fff8e8"),
+    "estimate":    ("估算",   "#b7791f", "#fff8e8"),
+    "inference":   ("推断",   "#7c8798", "#f1f3f7"),
+}
+_TYPE_LABEL = {"official": "官方数据", "report": "行业报告", "financial": "公司财报",
+               "news": "新闻报道", "media": "自媒体", "other": "其他"}
+
+
+def _render_evidence(evidence: dict) -> str:
+    """渲染"证据与来源"章节：事实状态表 + 带编号的来源列表。"""
+    if not evidence:
+        return ""
+    sources = evidence.get("sources") or []
+    facts = evidence.get("facts") or []
+    if not sources and not facts:
+        return ""
+
+    parts = ['<section class="section evidence">',
+             '<h2 class="section-title">证据与来源</h2>']
+
+    # 事实状态
+    if facts:
+        rows = []
+        for f in facts:
+            label, color, bg = _EVIDENCE_STATUS.get(f.get("status", "unverified"),
+                                                    _EVIDENCE_STATUS["unverified"])
+            refs = "".join(f'<sup class="cite"><a href="#ref-{n}">[{n}]</a></sup>'
+                           for e in f.get("evidence", [])
+                           if (n := re.sub(r"\D", "", e or "")))
+            rows.append(
+                f'<tr><td><span class="ev-tag" style="background:{bg};color:{color}">{label}</span></td>'
+                f'<td>{_e(f.get("claim", ""))}{refs}</td>'
+                f'<td>{_e(f.get("category", ""))}</td>'
+                f'{f"<td>{_e(f.get('note', ''))}</td>" if f.get("note") else "<td></td>"}</tr>'
+            )
+        parts.append('<table class="ev-table"><thead><tr>'
+                     '<th>核实状态</th><th>事实</th><th>类别</th><th>说明</th>'
+                     '</tr></thead><tbody>' + "".join(rows) + '</tbody></table>')
+
+    # 来源列表（带编号锚点）
+    if sources:
+        items = []
+        for i, s in enumerate(sources, 1):
+            label, color, bg = _EVIDENCE_STATUS.get(s.get("source_type", "other"), ("", "", ""))
+            typ = _TYPE_LABEL.get(s.get("source_type", "other"), "其他")
+            date = s.get("published_at") or s.get("accessed_at") or ""
+            url = s.get("url", "")
+            url_html = (f'<a href="{_e(url)}" target="_blank" rel="noopener noreferrer">'
+                        f'{_e(url)}</a>') if url else ""
+            items.append(
+                f'<li id="ref-{i}" class="ev-src">'
+                f'<span class="ref-no">[{i}]</span>'
+                f'<div class="ev-src-body">'
+                f'<b>{_e(s.get("title", ""))}</b>'
+                f'<span class="ev-src-meta">《{typ}》 · {_e(date)}</span>'
+                f'{url_html}'
+                f'</div></li>'
+            )
+        parts.append('<h3 class="ev-h3">公开来源（可点击核验）</h3>'
+                     '<ol class="ev-src-list">' + "".join(items) + '</ol>')
+
+    parts.append('</section>')
+    return "\n".join(parts)
 
 
 def _e(s: str) -> str:

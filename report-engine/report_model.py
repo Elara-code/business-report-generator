@@ -113,6 +113,7 @@ class Report(BaseModel):
     summary: str = ""
     sections: list[Section] = Field(default_factory=list)
     appendix: Appendix = Field(default_factory=Appendix)
+    evidence: Optional[dict] = None  # 证据链（research.EvidenceChain.model_dump() 的结果）
 
     model_config = {"extra": "allow"}
 

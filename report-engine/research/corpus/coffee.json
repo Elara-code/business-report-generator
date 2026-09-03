@@ -1,0 +1,112 @@
+{
+  "keywords": ["咖啡", "现制咖啡", "coffee"],
+  "sources": [
+    {
+      "title": "艾瑞咨询《2025 中国现制咖啡行业研究报告》",
+      "url": "https://www.iresearch.com.cn/report/2025/coffee",
+      "domain": "www.iresearch.com.cn",
+      "published_at": "2025-01",
+      "source_type": "report",
+      "snippet": "报告显示中国现制咖啡市场保持 20% 左右复合增长，瑞幸以约 22% 门店份额居首，供应链与数字化成为新的护城河。",
+      "facts": [
+        {"claim": "2024 年中国现制咖啡市场规模约 2510 亿元", "category": "市场规模"},
+        {"claim": "近三年行业复合增速约 18.6%", "category": "增速"},
+        {"claim": "瑞幸以约 22% 门店份额居首", "category": "头部玩家"},
+        {"claim": "头部品牌通过供应链与数字化构建护城河", "category": "竞争格局"},
+        {"claim": "9.9 元价格带成为行业主流打法", "category": "竞争格局"},
+        {"claim": "行业从蓝海进入高烈度竞争阶段", "category": "趋势"}
+      ]
+    },
+    {
+      "title": "中国连锁经营协会《2025 现制咖啡行业报告》",
+      "url": "https://www.ccfa.org.cn/2025/coffee",
+      "domain": "www.ccfa.org.cn",
+      "published_at": "2025-03",
+      "source_type": "report",
+      "snippet": "全国现制咖啡门店数超过 20 万家，下沉市场成为新增门店的主要来源。",
+      "facts": [
+        {"claim": "2024 年中国现制咖啡市场规模约 2510 亿元", "category": "市场规模"},
+        {"claim": "全国现制咖啡门店数超过 20 万家", "category": "市场规模"},
+        {"claim": "近三年行业复合增速约 18.6%", "category": "增速"},
+        {"claim": "头部品牌通过供应链与数字化构建护城河", "category": "竞争格局"},
+        {"claim": "下沉市场是新增门店的主要来源", "category": "趋势"},
+        {"claim": "现制咖啡渗透率仍处于早期阶段", "category": "趋势"}
+      ]
+    },
+    {
+      "title": "美团《2024 咖啡消费洞察》",
+      "url": "https://www.meituan.com/insight/2024/coffee",
+      "domain": "www.meituan.com",
+      "published_at": "2024-11",
+      "source_type": "report",
+      "snippet": "人均年消费杯数约 5 杯，外卖与自提占比持续提升。",
+      "facts": [
+        {"claim": "2024 年中国现制咖啡市场规模约 2510 亿元", "category": "市场规模"},
+        {"claim": "全国现制咖啡门店数超过 20 万家", "category": "市场规模"},
+        {"claim": "人均年消费杯数约 5 杯", "category": "趋势"},
+        {"claim": "头部品牌通过供应链与数字化构建护城河", "category": "竞争格局"},
+        {"claim": "行业从蓝海进入高烈度竞争阶段", "category": "趋势"}
+      ]
+    },
+    {
+      "title": "国家统计局 社会消费品零售数据",
+      "url": "https://www.stats.gov.cn/data/retail",
+      "domain": "www.stats.gov.cn",
+      "published_at": "2025-02",
+      "source_type": "official",
+      "snippet": "餐饮消费相关品类保持增长，现制咖啡属于消费升级的典型品类。",
+      "facts": [
+        {"claim": "餐饮消费相关品类保持约 5% 以上增长", "category": "增速"},
+        {"claim": "现制咖啡渗透率仍处于早期阶段", "category": "趋势"}
+      ]
+    },
+    {
+      "title": "瑞幸咖啡 2024 年年报",
+      "url": "https://www.lkcoffee.com/annual/2024",
+      "domain": "www.lkcoffee.com",
+      "published_at": "2025-03",
+      "source_type": "financial",
+      "snippet": "瑞幸门店数超过 22000 家，2024 年营收约 344 亿元，单店模型与数字化中台领先行业。",
+      "facts": [
+        {"claim": "瑞幸门店数超过 22000 家", "category": "头部玩家"},
+        {"claim": "瑞幸 2024 年营收约 344 亿元", "category": "头部玩家"}
+      ]
+    },
+    {
+      "title": "星巴克 2024 财年 Q4 财报",
+      "url": "https://news.starbucks.com/q4-2024",
+      "domain": "news.starbucks.com",
+      "published_at": "2024-11",
+      "source_type": "financial",
+      "snippet": "星巴克中国区门店约 7000 家，聚焦第三空间与品牌溢价。",
+      "facts": [
+        {"claim": "星巴克中国区门店约 7000 家", "category": "头部玩家"}
+      ]
+    },
+    {
+      "title": "财新 · 下沉市场咖啡竞争报道",
+      "url": "https://www.caixin.com/2025/downstream-coffee",
+      "domain": "www.caixin.com",
+      "published_at": "2025-04",
+      "source_type": "news",
+      "snippet": "下沉市场门店增速高于一线城市约 15 个百分点，成为连锁品牌新战场。",
+      "facts": [
+        {"claim": "下沉市场门店增速高于一线城市约 15 个百分点", "category": "趋势"},
+        {"claim": "下沉市场是新增门店的主要来源", "category": "趋势"},
+        {"claim": "行业从蓝海进入高烈度竞争阶段", "category": "趋势"}
+      ]
+    },
+    {
+      "title": "某自媒体 · 现制咖啡市场规模对比口径",
+      "url": "https://mp.weixin.qq.com/s/coffee-market-2024",
+      "domain": "mp.weixin.qq.com",
+      "published_at": "2025-05",
+      "source_type": "media",
+      "snippet": "该来源给出 2024 年中国现制咖啡市场规模约 2680 亿元的另一口径，与主流研报存在差异。",
+      "facts": [
+        {"claim": "2024 年中国现制咖啡市场规模约 2680 亿元", "category": "市场规模"},
+        {"claim": "9.9 元价格带成为行业主流打法", "category": "竞争格局"}
+      ]
+    }
+  ]
+}

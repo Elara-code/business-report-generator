@@ -1,0 +1,43 @@
+{
+  "keywords": ["notion", "obsidian", "笔记", "对比"],
+  "sources": [
+    {
+      "title": "少数派 · Notion 与 Obsidian 对比评测",
+      "url": "https://sspai.com/post/notion-vs-obsidian",
+      "domain": "sspai.com",
+      "published_at": "2025-02",
+      "source_type": "media",
+      "snippet": "Notion 更适合团队协作与项目管理，Obsidian 更适合本地笔记与个人知识库。",
+      "facts": [
+        {"claim": "Notion 更适合团队协作与项目管理，Obsidian 更适合本地知识库", "category": "功能对比"},
+        {"claim": "Notion 实时协作体验更好", "category": "优势"}
+      ]
+    },
+    {
+      "title": "知乎 · Notion 与 Obsidian 选型讨论",
+      "url": "https://www.zhihu.com/question/notion-obsidian",
+      "domain": "www.zhihu.com",
+      "published_at": "2025-03",
+      "source_type": "media",
+      "snippet": "核心差异在于云端优先与本地优先：Notion 依赖云端，Obsidian 以本地 Markdown 文件为核心。",
+      "facts": [
+        {"claim": "Notion 是云端优先，Obsidian 是本地文件优先", "category": "功能对比"},
+        {"claim": "Obsidian 完全免费，Notion 免费版有限制", "category": "定价对比"},
+        {"claim": "Obsidian 的插件生态更丰富", "category": "优势"}
+      ]
+    },
+    {
+      "title": "V2EX · 笔记软件选型讨论",
+      "url": "https://www.v2ex.com/t/notes-app",
+      "domain": "www.v2ex.com",
+      "published_at": "2025-04",
+      "source_type": "media",
+      "snippet": "用户普遍认可 Obsidian 本地优先与双链的隐私优势，也认可 Notion 的协作与数据库能力。",
+      "facts": [
+        {"claim": "Obsidian 的插件生态更丰富", "category": "优势"},
+        {"claim": "Notion 实时协作体验更好", "category": "优势"},
+        {"claim": "Notion 是云端优先，Obsidian 是本地文件优先", "category": "功能对比"}
+      ]
+    }
+  ]
+}

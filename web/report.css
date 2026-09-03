@@ -231,6 +231,70 @@ body {
   line-height: 1.7;
 }
 
+/* ----- 证据与来源（研究流水线 v1） ----- */
+.cite { font-size: 10px; vertical-align: super; font-weight: 700; }
+.cite a { color: #2563eb; text-decoration: none; }
+.cite a:hover { text-decoration: underline; }
+.evidence {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px 28px;
+  margin-top: 48px;
+}
+.ev-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 24px;
+  font-size: 13px;
+  background: #fff;
+}
+.ev-table th, .ev-table td {
+  border: 1px solid #e2e8f0;
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.ev-table th { background: #f1f5f9; font-weight: 600; color: #334155; }
+.ev-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ev-h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  margin: 20px 0 10px;
+}
+.ev-src-list { list-style: none; margin: 0; padding: 0; }
+.ev-src {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e8edf5;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  scroll-margin-top: 16px;
+}
+.ev-src:target { border-color: #2563eb; box-shadow: 0 0 0 3px #dbeafe; }
+.ref-no { color: #2563eb; font-weight: 700; flex: none; }
+.ev-src-body b { display: block; color: #1e293b; font-weight: 600; }
+.ev-src-meta { display: block; color: #94a3b8; font-size: 12px; margin: 2px 0; }
+.ev-src-body a {
+  display: block;
+  color: #2563eb;
+  font-size: 12px;
+  word-break: break-all;
+  text-decoration: none;
+}
+.ev-src-body a:hover { text-decoration: underline; }
+
 /* ----- Footer ----- */
 .report-foot {
   margin-top: 48px;
