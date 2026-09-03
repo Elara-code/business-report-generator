@@ -1,0 +1,9 @@
+# Docker 构建上下文排除
+.git
+.gitignore
+reports
+*.log
+.venv
+__pycache__
+*.pyc
+.DS_Store

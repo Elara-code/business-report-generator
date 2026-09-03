@@ -1,0 +1,15 @@
+# 一键部署：docker compose up -d
+# 需先设置环境变量 OPENAI_API_KEY（或复制 .env.example）
+services:
+  report-engine:
+    build: .
+    ports:
+      - "8781:8781"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?请在 .env 或环境变量中设置 OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.deepseek.com}
+      - OPENAI_MODEL=${OPENAI_MODEL:-deepseek-v4-flash}
+    volumes:
+      # 报告持久化到宿主机 ./reports
+      - ./reports:/app/reports
+    restart: unless-stopped
