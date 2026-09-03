@@ -204,6 +204,21 @@ function resetTrace() {
   $('#sourceBox').style.display = 'none';
   $('#chatArea').innerHTML = '';
 }
+// 新建分析：完整重置工作台（输入框 + 对话/流水线 + 报告预览）
+function resetWorkspace() {
+  resetTrace();
+  $('#prompt').value = '';
+  setRunBadge('等待任务…', false);
+  currentReport = null;
+  $('#reportFrame').src = '';
+  $('#reportFrame').classList.add('hidden');
+  $('#reportEmpty').classList.remove('hidden');
+  $('#filePill').textContent = 'report.html';
+  $('#chainList').innerHTML = '<div class="report-empty">暂无数据</div>';
+  $('#srcList').innerHTML = '<div class="report-empty">暂无数据</div>';
+  $('#srcSummary').textContent = '';
+  $$('#historyList .chat-item').forEach((x) => x.classList.remove('active'));
+}
 function setRunBadge(text, on) {
   $('#runBadge').style.display = on ? '' : 'none';
   $('#runBadgeText').textContent = text;
@@ -461,7 +476,8 @@ $('#prompt').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSubmit(); }
 });
 $('#newChat').onclick = () => {
-  $('#prompt').value = '';
+  if (running) return;
+  resetWorkspace();
   $('#prompt').focus();
 };
 $('#downloadBtn').onclick = () => {
