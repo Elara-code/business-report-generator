@@ -238,7 +238,7 @@ def _render_evidence(evidence: dict) -> str:
     parts = ['<section class="section evidence">',
              '<h2 class="section-title">证据与来源</h2>']
 
-    # 事实状态
+    # 事实状态（默认折叠：正文已内联标注核实状态，工作台另有"证据链"Tab 可交互查看）
     if facts:
         rows = []
         for f in facts:
@@ -253,9 +253,20 @@ def _render_evidence(evidence: dict) -> str:
                 f'<td>{_e(f.get("category", ""))}</td>'
                 f'{f"<td>{_e(f.get('note', ''))}</td>" if f.get("note") else "<td></td>"}</tr>'
             )
-        parts.append('<table class="ev-table"><thead><tr>'
+        n_verified = sum(1 for f in facts if f.get("status") == "verified")
+        n_conf = sum(1 for f in facts if f.get("status") == "conflicted")
+        n_unv = sum(1 for f in facts if f.get("status") in ("unverified", "estimate"))
+        summary = (
+            '<summary class="ev-summary">事实状态总览'
+            f'<span class="ev-sum-count">共 {len(facts)} 条 · '
+            f'<span class="ev-sum-ok">{n_verified} 已核实</span> · '
+            f'<span class="ev-sum-conf">{n_conf} 冲突</span> · '
+            f'<span class="ev-sum-warn">{n_unv} 待确认</span></span></summary>'
+        )
+        parts.append('<details class="ev-details">' + summary +
+                     '<table class="ev-table"><thead><tr>'
                      '<th>核实状态</th><th>事实</th><th>类别</th><th>说明</th>'
-                     '</tr></thead><tbody>' + "".join(rows) + '</tbody></table>')
+                     '</tr></thead><tbody>' + "".join(rows) + '</tbody></table></details>')
 
     # 来源列表（带编号锚点）
     if sources:

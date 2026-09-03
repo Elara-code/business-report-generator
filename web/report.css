@@ -242,6 +242,34 @@ body {
   padding: 24px 28px;
   margin-top: 48px;
 }
+.ev-details { margin: 12px 0 20px; }
+.ev-summary {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  list-style: none;
+}
+.ev-summary::-webkit-details-marker { display: none; }
+.ev-summary::before { content: "▸"; color: #94a3b8; margin-right: 4px; }
+.ev-details[open] .ev-summary::before { content: "▾"; }
+.ev-summary:hover { border-color: #bcd0fc; }
+.ev-sum-count { font-size: 11px; font-weight: 500; color: #94a3b8; display: inline-flex; gap: 8px; align-items: center; }
+.ev-sum-ok { color: #149c6a; font-weight: 700; }
+.ev-sum-conf { color: #dc2626; font-weight: 700; }
+.ev-sum-warn { color: #b7791f; font-weight: 700; }
+.ev-details .ev-table { margin: 0; border-top: 0; }
+.ev-details[open] .ev-table { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
 .ev-table {
   width: 100%;
   border-collapse: collapse;
