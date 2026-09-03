@@ -24,6 +24,7 @@ import asyncio
 import json
 import os
 import re
+import shutil
 import sys
 import uuid
 from datetime import datetime
@@ -298,11 +299,17 @@ def cmd_serve(args) -> int:
                 return super().do_GET()
             if self.path == "/api/history":
                 return self._json_history()
+            if self.path == "/api/projects":
+                return self._json({"projects": self._list_projects()})
             return super().do_GET()
 
         def do_POST(self):  # noqa
             if self.path == "/api/generate":
                 return self._handle_generate_sse()
+            if self.path == "/api/history/delete":
+                return self._handle_delete()
+            if self.path == "/api/projects":
+                return self._handle_create_project()
             return self._json({"error": "Not Found"}, 404)
 
         # ----- /api/generate（SSE 流式） -----
@@ -329,6 +336,7 @@ def cmd_serve(args) -> int:
             market = req.get("market")
             time_range = req.get("time_range")
             audience = req.get("audience")
+            project = self._safe_project(req.get("project"))
 
             # SSE 头
             self.send_response(200)
@@ -349,13 +357,15 @@ def cmd_serve(args) -> int:
                     pass
 
             try:
+                out_root = os.path.join(reports_dir, project) if project else reports_dir
+                os.makedirs(out_root, exist_ok=True)
                 report, outputs, target = do_generate(
                     report_type=report_type,
                     subject=subject,
                     ai=ai,
                     preset=preset,
                     formats=formats,
-                    out_root=reports_dir,
+                    out_root=out_root,
                     from_json=None,
                     on_progress=lambda phase, msg: emit(phase, msg),
                     market=market,
@@ -388,42 +398,119 @@ def cmd_serve(args) -> int:
             self.close_connection = True
             return
 
-        # ----- /api/history -----
+        # ----- /api/history（按项目分组） -----
+        def _safe_project(self, name) -> str:
+            """清洗项目名，仅保留目录安全字符；空/非法返回空字符串（= 默认分组）。"""
+            if not name:
+                return ""
+            safe = re.sub(r'[\\/:*?"<>|\s]+', "_", str(name)).strip("_")[:40]
+            if safe in ("", ".", ".."):
+                return ""
+            return safe
+
+        def _list_projects(self) -> list[str]:
+            """reports/ 下一级目录中「不是报告目录」（即含子目录、无自身 report.json）的视为项目。"""
+            projects = []
+            if os.path.exists(reports_dir):
+                for entry in sorted(os.listdir(reports_dir)):
+                    full = os.path.join(reports_dir, entry)
+                    if os.path.isdir(full) and not os.path.exists(os.path.join(full, "report.json")):
+                        projects.append(entry)
+            return projects
+
+        def _history_item(self, rel_dir: str, entry: str) -> dict | None:
+            """读取单个报告目录的元信息。rel_dir 为相对 reports/ 的路径（可能含项目前缀）。"""
+            full = os.path.join(reports_dir, rel_dir)
+            json_path = os.path.join(full, "report.json")
+            if not os.path.exists(json_path):
+                return None
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    r = json.load(f)
+                meta = r.get("meta", {})
+                files: dict[str, str] = {}
+                for ext in ("html", "md", "pdf"):
+                    p = os.path.join(full, f"report.{ext}")
+                    if os.path.exists(p):
+                        files[ext] = f"reports/{rel_dir}/report.{ext}"
+                if not files:
+                    return None
+                return {
+                    "dir": rel_dir,
+                    "title": meta.get("title", entry),
+                    "type": meta.get("type", ""),
+                    "subject": meta.get("subject", ""),
+                    "date": meta.get("generated_at", ""),
+                    "files": files,
+                    "html": files.get("html", ""),
+                }
+            except Exception:
+                return None
+
         def _json_history(self):
-            items = []
+            groups: dict[str, list] = {}
             if os.path.exists(reports_dir):
                 for entry in sorted(os.listdir(reports_dir), reverse=True):
                     full = os.path.join(reports_dir, entry)
                     if not os.path.isdir(full):
                         continue
-                    json_path = os.path.join(full, "report.json")
-                    if not os.path.exists(json_path):
+                    # 报告目录（自身带 report.json）→ 默认分组
+                    if os.path.exists(os.path.join(full, "report.json")):
+                        item = self._history_item(entry, entry)
+                        if item:
+                            groups.setdefault("默认", []).append(item)
                         continue
-                    try:
-                        with open(json_path, "r", encoding="utf-8") as f:
-                            r = json.load(f)
-                        meta = r.get("meta", {})
-                        # P1: 只返回真实存在的文件
-                        files: dict[str, str] = {}
-                        for ext in ("html", "md", "pdf"):
-                            p = os.path.join(full, f"report.{ext}")
-                            if os.path.exists(p):
-                                files[ext] = f"reports/{entry}/report.{ext}"
-                        if not files:
+                    # 项目目录 → 遍历其下的报告
+                    proj = entry
+                    for sub in sorted(os.listdir(full), reverse=True):
+                        subfull = os.path.join(full, sub)
+                        if not os.path.isdir(subfull):
                             continue
-                        items.append({
-                            "dir": entry,
-                            "title": meta.get("title", entry),
-                            "type": meta.get("type", ""),
-                            "subject": meta.get("subject", ""),
-                            "date": meta.get("generated_at", ""),
-                            "files": files,
-                            # 兼容字段：单一 html
-                            "html": files.get("html", ""),
-                        })
-                    except Exception:
-                        continue
-            return self._json({"items": items})
+                        rel = f"{proj}/{sub}"
+                        item = self._history_item(rel, sub)
+                        if item:
+                            groups.setdefault(proj, []).append(item)
+            # 默认分组放最后，其余按名排序；空项目也保留（让前端能显示项目组）
+            projects = self._list_projects()
+            for p in projects:
+                if p not in groups:
+                    groups[p] = []
+            ordered = [g for g in sorted(groups) if g != "默认"] + (["默认"] if "默认" in groups else [])
+            payload = [{"name": k, "items": groups[k]} for k in ordered]
+            return self._json({"groups": payload, "projects": projects})
+
+        # ----- /api/history/delete（删除报告或项目） -----
+        def _handle_delete(self):
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                body = self.rfile.read(length).decode("utf-8")
+                req = json.loads(body) if body else {}
+            except Exception as e:
+                return self._json({"error": f"无效 JSON: {e}"}, 400)
+            rel = str(req.get("dir", "")).strip().lstrip("/")
+            base = os.path.realpath(reports_dir)
+            target = os.path.realpath(os.path.join(base, rel))
+            # 防路径穿越：目标必须在 reports/ 内
+            if rel in ("", ".", "..") or not (target == base or target.startswith(base + os.sep)):
+                return self._json({"error": "非法路径"}, 400)
+            if not os.path.isdir(target):
+                return self._json({"error": "目标不存在"}, 404)
+            shutil.rmtree(target)
+            return self._json({"ok": True})
+
+        # ----- /api/projects（创建项目 = 在 reports/ 下建目录） -----
+        def _handle_create_project(self):
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                body = self.rfile.read(length).decode("utf-8")
+                req = json.loads(body) if body else {}
+            except Exception as e:
+                return self._json({"error": f"无效 JSON: {e}"}, 400)
+            name = self._safe_project(req.get("name"))
+            if not name:
+                return self._json({"error": "项目名不能为空或含非法字符"}, 400)
+            os.makedirs(os.path.join(reports_dir, name), exist_ok=True)
+            return self._json({"ok": True, "name": name, "projects": self._list_projects()})
 
         def _json(self, obj, code=200):
             data = json.dumps(obj, ensure_ascii=False).encode("utf-8")
@@ -436,8 +523,10 @@ def cmd_serve(args) -> int:
         def log_message(self, format, *args):  # noqa
             print(f"[{self.log_date_time_string()}] {self.address_string()} {format % args}")
 
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("127.0.0.1", args.port), Handler) as httpd:
+    # 多线程 TCPServer：SSE 生成请求是长连接（可达数分钟），若用单线程 TCPServer
+    # 会阻塞浏览器加载页面 / 其他 API 请求。必须每个连接一个线程。
+    socketserver.ThreadingTCPServer.allow_reuse_address = True
+    with socketserver.ThreadingTCPServer(("127.0.0.1", args.port), Handler) as httpd:
         url = f"http://127.0.0.1:{args.port}"
         print(f"🚀 Report Engine 已启动")
         print(f"   打开浏览器访问：{url}")

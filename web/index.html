@@ -18,9 +18,12 @@
     </div>
   </header>
 
-  <!-- 左栏：最近分析 -->
+  <!-- 左栏：最近分析（按项目分组） -->
   <aside class="left">
-    <button class="new-chat" id="newChat">＋ 新建分析</button>
+    <div class="left-actions">
+      <button class="new-chat" id="newChat">＋ 新建分析</button>
+      <button class="new-project" id="newProjectBtn" title="创建项目/目录，把同主题报告归类到一起">＋ 项目</button>
+    </div>
     <div class="nav-label">最近分析</div>
     <div id="historyList">
       <div class="chat-item" style="cursor:default"><span class="t" style="color:var(--navmuted)">加载中…</span></div>
@@ -67,12 +70,6 @@
     <!-- 输入区 -->
     <div class="middle-footer">
       <div class="param-row">
-        <span class="param-label">生成引擎</span>
-        <button class="choice active" data-group="engine" data-engine="mock">演示模式（离线）</button>
-        <button class="choice" data-group="engine" data-engine="openai">真实模型（联网）</button>
-        <span class="engine-hint" id="engineHint">演示模式：离线语料，无需 Key</span>
-      </div>
-      <div class="param-row">
         <span class="param-label">报告类别</span>
         <button class="choice active" data-group="type" data-type="industry">行业分析</button>
         <button class="choice" data-group="type" data-type="product">产品拆解</button>
@@ -80,25 +77,9 @@
       </div>
       <div class="param-row">
         <span class="param-label">研究范围</span>
-        <select class="param-select" id="marketSel">
-          <option value="全国" selected>市场：全国（默认）</option>
-          <option value="全球">市场：全球</option>
-          <option value="华东">市场：华东</option>
-          <option value="自定义">市场：自定义…</option>
-        </select>
-        <select class="param-select" id="timeSel">
-          <option value="近1年" selected>时间范围：近 1 年（北京时间）</option>
-          <option value="近3年">时间范围：近 3 年</option>
-          <option value="近5年">时间范围：近 5 年</option>
-          <option value="自定义">时间范围：自定义…</option>
-        </select>
-        <select class="param-select" id="audienceSel">
-          <option value="普通读者" selected>读者：普通读者（默认）</option>
-          <option value="投资人">读者：投资人</option>
-          <option value="创业者">读者：创业者</option>
-          <option value="产品经理">读者：产品经理</option>
-          <option value="采购选型">读者：采购选型</option>
-        </select>
+        <input class="param-input" id="marketInput" data-default="全国" placeholder="市场范围：全国（默认）">
+        <input class="param-input" id="timeInput" data-default="近1年" placeholder="时间范围：近 1 年（北京时间，默认）">
+        <input class="param-input" id="audienceInput" data-default="普通读者" placeholder="读者：普通读者（默认）">
       </div>
       <div class="composer-box">
         <textarea id="prompt" placeholder="描述你想分析的行业、产品或竞品… 例如：中国现制咖啡行业 / Notion / Notion vs Obsidian"></textarea>

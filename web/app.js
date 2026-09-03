@@ -1,4 +1,4 @@
-// Report Agent · 商业研究工作站（UI v2 落地版）
+// Report Agent · 商业研究工作站（UI v3 · 项目分组 · 可调列宽 · 默认真实模型）
 // 通过 POST /api/generate 调起后端研究流水线，SSE 驱动 7 阶段日志 / 来源面板 / 证据链
 
 const $ = (s) => document.querySelector(s);
@@ -14,8 +14,10 @@ const STATUS_LABEL = {
 };
 const PHASES = ['parse', 'search', 'filter', 'extract', 'verify', 'draft', 'render'];
 
-let currentReport = null; // { title, evidence, files, preview, confidence }
+let currentReport = null; // { title, evidence, files, preview, confidence, dir }
 let running = false;
+let currentProject = ''; // '' = 默认分组；否则为项目名
+const DEFAULT_PROJECT = '默认';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -23,42 +25,125 @@ function escapeHtml(s) {
   }[c]));
 }
 
-// ---------------- 顶栏 / 历史 ----------------
+// ---------------- 顶栏 / 历史（按项目分组） ----------------
+function renderHistoryList(data) {
+  const list = $('#historyList');
+  const groups = data.groups || [];
+  if (!groups.length) {
+    list.innerHTML = '<div class="chat-item" style="cursor:default"><span class="t" style="color:var(--navmuted)">还没有历史报告</span></div>';
+    return;
+  }
+  list.innerHTML = groups.map((g) => {
+    const itemsHtml = g.items.map((it) => `
+      <button class="chat-item" data-title="${escapeHtml(it.title)}"
+              data-dir="${escapeHtml(it.dir || '')}"
+              data-html="${escapeHtml((it.files && it.files.html) || '')}">
+        <i class="dot"></i><span class="t">${escapeHtml(it.title)}</span>
+        <span class="st">${escapeHtml(it.type)}</span>
+        <span class="del-btn" title="删除这条记录">🗑</span>
+      </button>`).join('');
+    const collapsed = (g.name !== DEFAULT_PROJECT && currentProject !== g.name) ? '' : '';
+    return `<div class="proj-group" data-proj="${escapeHtml(g.name)}">
+      <button class="proj-head" data-proj="${escapeHtml(g.name)}">
+        <span class="caret">▾</span><span class="nm">${escapeHtml(g.name)}</span><span class="cnt">${g.items.length}</span>
+      </button>
+      <div class="proj-items">${itemsHtml}</div>
+    </div>`;
+  }).join('');
+
+  // 高亮当前项目
+  $$('.proj-head').forEach((h) => h.classList.toggle('active', h.dataset.proj === (currentProject || DEFAULT_PROJECT)));
+
+  // 项目头：点名字选中（生成归入），点 caret 折叠
+  $$('.proj-head').forEach((h) => {
+    h.addEventListener('click', (e) => {
+      if (e.target.classList.contains('caret')) {
+        h.parentElement.classList.toggle('collapsed');
+        return;
+      }
+      currentProject = h.dataset.proj === DEFAULT_PROJECT ? '' : h.dataset.proj;
+      $$('.proj-head').forEach((x) => x.classList.toggle('active', x === h));
+      flashProjectHint();
+    });
+  });
+  // 记录点击：打开报告；删除按钮：删除该条
+  $$('#historyList .chat-item').forEach((btn) => {
+    btn.querySelector('.del-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteHistory(btn.dataset.dir, btn.dataset.title);
+    });
+    btn.addEventListener('click', () => openHistoryReport(btn));
+  });
+}
+function flashProjectHint() {
+  const nav = $('.nav-label');
+  if (!nav) return;
+  const base = '最近分析';
+  const proj = currentProject ? ` · 当前：${currentProject}` : '';
+  const old = nav.textContent;
+  nav.textContent = base + proj;
+  setTimeout(() => { nav.textContent = old.replace(/\s*·.*$/, ''); }, 2500);
+}
+
 function loadHistory() {
   fetch('/api/history')
     .then((r) => r.json())
-    .then((data) => {
-      const list = $('#historyList');
-      if (!data.items || !data.items.length) {
-        list.innerHTML = '<div class="chat-item" style="cursor:default"><span class="t" style="color:var(--navmuted)">还没有历史报告</span></div>';
-        return;
-      }
-      list.innerHTML = data.items.map((it) => `
-        <button class="chat-item" data-title="${escapeHtml(it.title)}"
-                data-dir="${escapeHtml(it.dir || '')}"
-                data-html="${escapeHtml((it.files && it.files.html) || '')}"
-                data-md="${escapeHtml((it.files && it.files.md) || '')}">
-          <i class="dot"></i><span class="t">${escapeHtml(it.title)}</span>
-          <span class="st">${escapeHtml(it.type)}</span>
-        </button>`).join('');
-      $$('#historyList .chat-item[data-html]').forEach((btn) => {
-        btn.onclick = () => openHistoryReport(btn);
-      });
-    })
+    .then((data) => renderHistoryList(data))
     .catch(() => { $('#historyList').innerHTML = '<div class="chat-item"><span class="t" style="color:var(--navmuted)">历史加载失败</span></div>'; });
 }
 $('#historyBtn').onclick = () => {
   if (currentReport && currentReport.preview) window.open('/' + currentReport.preview, '_blank');
 };
 
+function deleteHistory(dir, title) {
+  if (!dir) return;
+  if (!window.confirm(`删除这条报告？\n「${title}」\n（对应文件将一并删除，不可恢复）`)) return;
+  fetch('/api/history/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dir }),
+  }).then((r) => r.json()).then((d) => {
+    if (d.ok) {
+      loadHistory();
+      if (currentReport && currentReport.dir === dir) {
+        currentReport = null;
+        $('#reportFrame').classList.add('hidden');
+        $('#reportEmpty').classList.remove('hidden');
+      }
+    } else {
+      window.alert('删除失败：' + (d.error || '未知错误'));
+    }
+  }).catch(() => window.alert('删除失败：网络错误'));
+}
+
+function createProject() {
+  const name = window.prompt('输入新项目名（同一项目的报告会归类在一起）：', '');
+  if (name === null) return;
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  fetch('/api/projects', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: trimmed }),
+  }).then((r) => r.json()).then((d) => {
+    if (d.ok) {
+      currentProject = d.name;
+      loadHistory();
+    } else {
+      window.alert('创建失败：' + (d.error || '未知错误'));
+    }
+  }).catch(() => window.alert('创建失败：网络错误'));
+}
+$('#newProjectBtn').onclick = createProject;
+
 function openHistoryReport(btn) {
-  const html = btn.dataset.html || btn.dataset.md;
+  const html = btn.dataset.html;
   const dir = btn.dataset.dir;
   const title = btn.dataset.title;
   if (!html) return;
   $$('#historyList .chat-item').forEach((x) => x.classList.remove('active'));
   btn.classList.add('active');
-  currentReport = { title, preview: html, files: { html: html }, evidence: null };
+  currentReport = { title, preview: html, files: { html }, evidence: null, dir };
   $('#reportFrame').src = '/' + html;
   $('#reportFrame').classList.remove('hidden');
   $('#reportEmpty').classList.add('hidden');
@@ -124,15 +209,20 @@ function setRunBadge(text, on) {
   $('#runBadgeText').textContent = text;
 }
 
+// 参数：输入框为空时用 placeholder 中的默认值
+function paramVal(id) {
+  const el = $(id);
+  return (el.value.trim()) || (el.dataset.default || '');
+}
+
 // ---------------- 主流程 ----------------
 async function doSubmit() {
   if (running) return;
   const type = $('.choice[data-group="type"].active')?.dataset.type || 'industry';
-  const ai = $('.choice[data-group="engine"].active')?.dataset.engine || 'mock';
   const subject = $('#prompt').value.trim();
-  const market = $('#marketSel').value;
-  const time_range = $('#timeSel').value;
-  const audience = $('#audienceSel').value;
+  const market = paramVal('#marketInput');
+  const time_range = paramVal('#timeInput');
+  const audience = paramVal('#audienceInput');
   const fmt = ($('#formatLabel').textContent || 'html').toLowerCase();
   const format = fmt === 'markdown' ? 'md' : fmt;
   const formats = [format];
@@ -145,7 +235,8 @@ async function doSubmit() {
   $('#prompt').value = '';
   currentReport = null;
 
-  addUserBubble(subject, `已按参数：${TYPE_LABEL[type]} · ${market} / ${time_range}（北京时间） / ${audience} · 输出 ${format.toUpperCase()} · ${ai === 'openai' ? '真实模型' : '演示模式'}`);
+  const projTxt = currentProject ? ` · 项目：${currentProject}` : '';
+  addUserBubble(subject, `已按参数：${TYPE_LABEL[type]} · ${market} / ${time_range}（北京时间） / ${audience} · 输出 ${format.toUpperCase()} · 真实模型${projTxt}`);
   addAgentMessage('收到。我会先解析分析意图，再搜索公开网络信息，抽取关键事实并进行多源交叉验证，最后只基于已核实的证据生成带来源引用的报告。未经确认的内容会单独标注。');
   $('#traceTime').textContent = '0s';
   const t0 = Date.now();
@@ -162,7 +253,7 @@ async function doSubmit() {
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, subject, ai, preset: null, formats, market, time_range, audience }),
+      body: JSON.stringify({ type, subject, ai: 'openai', preset: null, formats, market, time_range, audience, project: currentProject }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -238,7 +329,7 @@ async function onComplete(final, type) {
   });
   if (chipHtml) { chips.innerHTML = chipHtml; chips.style.display = 'flex'; }
 
-  // 冲突横幅（用计数摘要即可提示）
+  // 冲突横幅
   if (evSummary.conflicted > 0) {
     const b = $('#conflictBanner');
     b.innerHTML = `<b>⚠ 检测到 ${evSummary.conflicted} 处数据口径冲突：</b>相关论断已标注「冲突」，报告中将同时展示不同来源的口径，关键数字请以原始来源为准。`;
@@ -324,7 +415,10 @@ function renderSources(ev) {
   const list = $('#srcList');
   const summary = $('#srcSummary');
   if (!sources.length) { list.innerHTML = '<div class="report-empty">暂无来源数据</div>'; summary.textContent = ''; return; }
-  summary.textContent = `${sources.length} 个收集来源 · ${ev.verified || 0} 已核实 · ${ev.conflicted || 0} 冲突 · ${ev.unverified || 0} 待确认`;
+  const nV = facts.filter((f) => f.status === 'verified').length;
+  const nC = facts.filter((f) => f.status === 'conflicted').length;
+  const nU = facts.filter((f) => f.status === 'unverified' || f.status === 'estimate').length;
+  summary.textContent = `${sources.length} 个收集来源 · ${nV} 已核实 · ${nC} 冲突 · ${nU} 待确认`;
   list.innerHTML = sources.map((s, i) => {
     const fs = facts.filter((f) => (f.evidence || []).includes(`s${i + 1}`));
     const verdict = fs.some((f) => f.status === 'conflicted') ? ['冲突', 'conf']
@@ -341,17 +435,8 @@ $$('.choice').forEach((b) => {
     const g = b.dataset.group;
     $$(`.choice[data-group="${g}"]`).forEach((x) => x.classList.remove('active'));
     b.classList.add('active');
-    if (g === 'engine') updateEngineHint();
   });
 });
-function updateEngineHint() {
-  const e = $('.choice[data-group="engine"].active')?.dataset.engine;
-  const h = $('#engineHint');
-  if (!h) return;
-  h.textContent = e === 'openai'
-    ? '真实模型：联网检索 + LLM，需服务端配置 OPENAI_API_KEY'
-    : '演示模式：离线语料，无需 Key';
-}
 const fmtMenu = $('#formatMenu'), fmtLabel = $('#formatLabel');
 $('#formatTrigger').addEventListener('click', (e) => { e.stopPropagation(); fmtMenu.classList.toggle('show'); });
 $$('.format-option').forEach((b) => b.addEventListener('click', () => {
@@ -386,5 +471,53 @@ $('#newWinBtn').onclick = () => {
   if (currentReport && currentReport.preview) window.open('/' + currentReport.preview, '_blank');
 };
 
+// ---------------- 三栏列宽拖拽 ----------------
+function setupDrag() {
+  const shell = $('.shell');
+  let active = null; // {type: 'l'|'r', startX, startL, startR, cols}
+
+  const onMove = (e) => {
+    if (!active) return;
+    const dx = e.clientX - active.startX;
+    let left = active.startL;
+    let right = active.startR;
+    if (active.type === 'l') {
+      left = Math.min(460, Math.max(190, active.startL + dx));
+    } else {
+      right = Math.min(960, Math.max(400, active.startR - dx));
+    }
+    shell.style.gridTemplateColumns = `${left}px 10px minmax(380px,1fr) 10px ${right}px`;
+  };
+  const onUp = () => {
+    if (!active) return;
+    active.split.classList.remove('dragging');
+    active = null;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
+  $$('.col-split').forEach((split) => {
+    split.addEventListener('mousedown', (e) => {
+      const cs = getComputedStyle(shell);
+      const cols = cs.gridTemplateColumns.split(' ').map((x) => parseFloat(x) || 0);
+      active = {
+        type: split.classList.contains('split-l') ? 'l' : 'r',
+        startX: e.clientX,
+        startL: cols[0] || 280,
+        startR: cols[4] || 620,
+        split,
+      };
+      split.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      e.preventDefault();
+    });
+  });
+}
+
 // ---------------- 启动 ----------------
+setupDrag();
 loadHistory();
