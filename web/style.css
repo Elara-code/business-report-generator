@@ -165,8 +165,9 @@ textarea{width:100%;height:38px;resize:none;border:0;outline:0;color:#3c4a41;bac
 .send{width:28px;height:28px;border-radius:7px;color:#fff;background:var(--green-2);font-weight:800}
 .send:hover{background:#1f9556}
 .send:disabled{background:#a9c9b6;cursor:default}
-.cancel{height:28px;padding:0 10px;border-radius:7px;color:#fff;background:#e0865a;font-size:12px;font-weight:600;align-items:center;display:inline-flex}
-.cancel:hover{background:#cf7346}
+.cancel{height:28px;padding:0 12px;border-radius:7px;color:#c34a3f;background:#fdf1f0;border:1px solid #efc6c1;font-size:12px;font-weight:600;align-items:center;display:inline-flex;gap:4px;cursor:pointer}
+.cancel:hover{background:#f9e3e0;border-color:#e9b4ae}
+.cancel:disabled{opacity:.6;cursor:default}
 .redo-btn{margin-top:6px;font-size:11px;color:#1f9556;background:#e9f7ef;border:1px solid #bfe6d0;border-radius:6px;padding:2px 8px;cursor:pointer}
 .redo-btn:hover{background:#d3efe0}
 .redo-btn:disabled{opacity:.6;cursor:default}

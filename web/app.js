@@ -295,6 +295,7 @@ async function doSubmit() {
   const clientId = (crypto.randomUUID && crypto.randomUUID()) || ('g' + Date.now() + Math.floor(Math.random() * 1e6));
   activeClientId = clientId;
   $('#cancelBtn').style.display = 'inline-flex';
+  $('#sendBtn').style.display = 'none';
 
   const projTxt = currentProject ? ` · 项目：${currentProject}` : '';
   addUserBubble(subject, `已按参数：${TYPE_LABEL[type]} · ${market} / ${time_range}（北京时间） / ${audience} · 输出 ${format.toUpperCase()} · 真实模型${projTxt}`);
@@ -414,6 +415,7 @@ async function doSubmit() {
     activeClientId = null;
     activeReader = null;
     $('#sendBtn').disabled = false;
+    $('#sendBtn').style.display = 'inline-flex';
     $('#cancelBtn').style.display = 'none';
   }
 }
